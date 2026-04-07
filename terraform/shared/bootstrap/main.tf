@@ -52,27 +52,6 @@ resource "aws_s3_bucket_public_access_block" "state" {
 }
 
 ################################################################################
-# ECR Repositories (shared across dev + prod – provisioned once here)
-################################################################################
-
-module "ecr" {
-  source       = "../../modules/ecr"
-  project_name = var.project_name
-  repositories = var.ecr_repositories
-  enable_ecr   = var.enable_ecr
-
-  image_tag_mutability = "MUTABLE"   # allow re-pushing :latest
-  scan_on_push         = true
-  untagged_expiry_days = 7
-  tagged_keep_count    = 10
-
-  tags = {
-    Project   = var.project_name
-    ManagedBy = "Terraform"
-  }
-}
-
-################################################################################
 # Outputs
 ################################################################################
 
@@ -80,14 +59,5 @@ output "state_bucket_name" {
   value = aws_s3_bucket.state.id
 }
 
-output "ecr_repository_urls" {
-  description = "Paste these URLs into each environment's terraform.tfvars as the 'image' values"
-  value       = module.ecr.repository_urls
-}
-
-output "ecr_repository_arns" {
-  description = "ECR repository ARNs – used in IAM policies for ECS task roles"
-  value       = module.ecr.repository_arns
-}
 
 
