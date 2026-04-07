@@ -114,7 +114,7 @@ log_retention_days = 90
 #   enable_route53  ALB alias records only created when enable_alb = true
 #   enable_ecs_services uses enable_cloudwatch_logs + enable_secrets + enable_alb (all optional)
 
-enable_secrets         = true
+enable_secrets         = false  # ← set false to destroy labhub-prod/app-secrets
 enable_ecs             = true
 enable_alb             = true   # requires enable_ecs = true for ECS SG ingress rule
 enable_redis           = true
@@ -122,5 +122,5 @@ enable_postgres        = true
 enable_s3              = true
 enable_cloudwatch_logs = true
 enable_route53         = true   # ALB alias records only created when enable_alb = true
-enable_ecr             = true   # repos are auto-named from each service's name field in var.services above
+enable_ecr             = false  # ← set false to destroy all ECR repositories
 

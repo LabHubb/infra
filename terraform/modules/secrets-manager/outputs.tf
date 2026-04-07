@@ -1,9 +1,17 @@
-output "secret_arns" {
-  description = "Map of secret key to ARN"
-  value       = { for k, v in aws_secretsmanager_secret.secrets : k => v.arn }
+output "secret_arn" {
+  description = "ARN of the single combined secret (labhub-dev/app-secrets)"
+  value       = aws_secretsmanager_secret.this.arn
 }
 
-output "secret_names" {
-  description = "Map of secret key to full secret name in Secrets Manager"
-  value       = { for k, v in aws_secretsmanager_secret.secrets : k => v.name }
+output "secret_name" {
+  description = "Full secret name in AWS Secrets Manager (e.g. labhub-dev/app-secrets)"
+  value       = aws_secretsmanager_secret.this.name
+}
+
+output "secret_arns" {
+  description = "Map of key → versioned ARN with JSON key suffix for direct ECS task definition injection. Format: arn:...:secret:name-xxxxx::KEY"
+  value = {
+    for k in keys(var.secrets) :
+    k => "${aws_secretsmanager_secret.this.arn}::${k}::"
+  }
 }

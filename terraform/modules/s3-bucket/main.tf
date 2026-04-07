@@ -41,6 +41,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
     id     = "transition-old-versions"
     status = "Enabled"
 
+    filter {} # applies to all objects
+
     noncurrent_version_transition {
       noncurrent_days = 30
       storage_class   = "STANDARD_IA"
@@ -59,6 +61,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
   rule {
     id     = "abort-incomplete-multipart"
     status = "Enabled"
+
+    filter {} # applies to all objects
 
     abort_incomplete_multipart_upload {
       days_after_initiation = 7

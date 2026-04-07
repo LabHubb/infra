@@ -79,16 +79,19 @@ module "secrets" {
   source = "../../modules/secrets-manager"
 
   name_prefix = local.name_prefix
+  secret_name = "app-secrets"
+  description = "All application secrets for ${local.name_prefix} – managed by Terraform"
   tags        = local.common_tags
 
+  # All keys are stored as one JSON object in AWS Secrets Manager:
+  #   labhub-prod/app-secrets = { "DB_PASSWORD": "...", "REDIS_AUTH_TOKEN": "..." }
+  # Add a new secret here + declare its variable below + set TF_VAR_xxx in shell.
   secrets = {
     DB_PASSWORD = {
-      value       = var.db_password
-      description = "PostgreSQL master password"
+      value = var.db_password
     }
     REDIS_AUTH_TOKEN = {
-      value       = var.redis_auth_token
-      description = "Redis AUTH token"
+      value = var.redis_auth_token
     }
   }
 }
@@ -360,8 +363,13 @@ output "dns_records" {
   value       = var.enable_route53 ? module.route53[0].record_fqdns : null
 }
 
+output "secret_arn" {
+  description = "ARN of the single combined Secrets Manager secret (labhub-prod/app-secrets)"
+  value       = var.enable_secrets ? module.secrets[0].secret_arn : null
+}
+
 output "secret_arns" {
-  description = "Secrets Manager ARNs"
+  description = "Map of key → ARN::KEY suffix for ECS task definition injection"
   value       = var.enable_secrets ? module.secrets[0].secret_arns : null
   sensitive   = true
 }

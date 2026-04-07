@@ -118,8 +118,7 @@ log_retention_days = 14
 # ── Auto Stop/Start Scheduler ─────────────────────────────────────────────────
 # ECS services, RDS and ElastiCache are stopped at 18:00 GMT+7 (11:00 UTC)
 # and started again at 08:00 GMT+7 (01:00 UTC), Mon–Fri only.
-# Set to false to disable (e.g. during a sprint that runs overnight).
-enable_scheduler = true
+# Controlled via enable_scheduler in the module flags block below.
 
 
 # ── Module enable/disable flags ───────────────────────────────────────────────
@@ -133,14 +132,14 @@ enable_scheduler = true
 #   enable_scheduler requires enable_ecs + enable_postgres + enable_redis = true
 #   enable_ecs_services uses enable_cloudwatch_logs + enable_secrets (gracefully optional)
 
-enable_secrets         = true
-enable_ecs             = true
-enable_nginx           = true   # requires enable_ecs = true
-enable_redis           = true
-enable_postgres        = true
-enable_s3              = true
-enable_cloudwatch_logs = true
-enable_route53         = true
-enable_scheduler       = true   # requires enable_ecs + enable_postgres + enable_redis = true
-enable_ecr             = true   # repos are auto-named from each service's name field in var.services above
+enable_secrets         = false
+enable_ecs             = false
+enable_nginx           = false   # requires enable_ecs = true
+enable_redis           = false
+enable_postgres        = false
+enable_s3              = false
+enable_cloudwatch_logs = false
+enable_route53         = false
+enable_scheduler       = false   # requires enable_ecs + enable_postgres + enable_redis = true
+enable_ecr             = false   # repos are auto-named from each service's name field in var.services above
 

@@ -116,8 +116,6 @@ resource "aws_scheduler_schedule" "ecs_start" {
       DesiredCount = each.value.desired_count
     })
   }
-
-  tags = var.tags
 }
 
 ################################################################################
@@ -147,8 +145,6 @@ resource "aws_scheduler_schedule" "ecs_stop" {
       DesiredCount = 0
     })
   }
-
-  tags = var.tags
 }
 
 ################################################################################
@@ -178,8 +174,6 @@ resource "aws_scheduler_schedule" "asg_start" {
       DesiredCapacity      = var.asg_desired_capacity
     })
   }
-
-  tags = var.tags
 }
 
 ################################################################################
@@ -209,8 +203,6 @@ resource "aws_scheduler_schedule" "asg_stop" {
       DesiredCapacity      = 0
     })
   }
-
-  tags = var.tags
 }
 
 ################################################################################
@@ -236,8 +228,6 @@ resource "aws_scheduler_schedule" "rds_start" {
       DbInstanceIdentifier = var.rds_identifier
     })
   }
-
-  tags = var.tags
 }
 
 ################################################################################
@@ -263,8 +253,6 @@ resource "aws_scheduler_schedule" "rds_stop" {
       DbInstanceIdentifier = var.rds_identifier
     })
   }
-
-  tags = var.tags
 }
 
 ################################################################################
@@ -290,8 +278,6 @@ resource "aws_scheduler_schedule" "redis_start" {
       ReplicationGroupId = var.redis_replication_group_id
     })
   }
-
-  tags = var.tags
 }
 
 ################################################################################
@@ -317,6 +303,4 @@ resource "aws_scheduler_schedule" "redis_stop" {
       ReplicationGroupId = var.redis_replication_group_id
     })
   }
-
-  tags = var.tags
 }

@@ -1,21 +1,31 @@
 ################################
-# Secrets Manager – one secret per logical key
-# Stores DB password, Redis auth token, etc.
+# Secrets Manager – single secret, JSON key/value store
+#
+# All secrets are combined into ONE secret name:
+#   {name_prefix}/{secret_name}   e.g. labhub-dev/app-secrets
+#
+# The secret value is a JSON object:
+#   { "DB_PASSWORD": "...", "REDIS_AUTH_TOKEN": "...", ... }
+#
+# ECS containers reference individual keys via the versioned ARN + JSON key suffix:
+#   arn:aws:secretsmanager:...:secret:labhub-dev/app-secrets-xxxxx::DB_PASSWORD
 ################################
 
-resource "aws_secretsmanager_secret" "secrets" {
-  for_each = var.secrets
-
-  name                    = "${var.name_prefix}/${each.key}"
-  description             = lookup(each.value, "description", "Managed by Terraform")
+resource "aws_secretsmanager_secret" "this" {
+  name                    = "${var.name_prefix}/${var.secret_name}"
+  description             = var.description
   recovery_window_in_days = var.recovery_window_in_days
 
-  tags = var.tags
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}/${var.secret_name}"
+  })
 }
 
-resource "aws_secretsmanager_secret_version" "secrets" {
-  for_each = var.secrets
+resource "aws_secretsmanager_secret_version" "this" {
+  secret_id = aws_secretsmanager_secret.this.id
 
-  secret_id     = aws_secretsmanager_secret.secrets[each.key].id
-  secret_string = each.value.value
+  # All key/value pairs serialised as a single JSON string
+  secret_string = jsonencode({
+    for k, v in var.secrets : k => v.value
+  })
 }
