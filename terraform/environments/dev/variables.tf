@@ -84,16 +84,18 @@ variable "nginx_ec2_public_ips" {
 
 variable "services" {
   type = map(object({
-    name              = string
-    container_port    = number
-    cpu               = number
-    memory            = number
-    desired_count     = number
-    path_pattern      = string
-    priority          = number
-    health_check_path = string
-    image_tag         = string
-    public            = bool
+    name                  = string
+    container_port        = number
+    cpu                   = number
+    memory                = number
+    desired_count         = number
+    path_pattern          = string
+    priority              = number
+    health_check_path     = string
+    health_check_matcher  = optional(string, "200")
+    health_check_interval = optional(number, 30)
+    image_tag             = string
+    public                = bool
     environment_variables = optional(list(object({
       name  = string
       value = string

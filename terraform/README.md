@@ -695,6 +695,115 @@ Then add the corresponding variable and set it via `TF_VAR_api_key`. All ECS ser
 
 ---
 
+## IAM Roles & Security Groups
+
+All IAM roles and security group rules are **created automatically by Terraform** — no manual steps needed. This section explains what is provisioned and why.
+
+---
+
+### IAM Roles
+
+#### 1. ECS EC2 Instance Role (`{name_prefix}-ecs-instance-role-001`)
+
+Attached to every EC2 node in the ECS cluster via an Instance Profile.
+
+| Policy | Why it's needed |
+|--------|----------------|
+| `AmazonEC2ContainerServiceforEC2Role` | Allows ECS agent on EC2 to register with the cluster, pull task definitions, and manage container placement |
+| `AmazonSSMManagedInstanceCore` | Enables AWS Session Manager shell access to EC2 nodes (no SSH/bastion needed) |
+
+> This role is managed by the `ecs-cluster` module.
+
+---
+
+#### 2. ECS Task Execution Role (`{project}-{service}-{env}-exec-role`)
+
+One per ECS service. Used by the ECS agent at **container startup** to pull secrets and container images.
+
+| Policy | Why it's needed |
+|--------|----------------|
+| `AmazonECSTaskExecutionRolePolicy` | Pull container images from ECR, write CloudWatch Logs |
+| Inline: `secrets_access` | `secretsmanager:GetSecretValue` on the app-secrets ARN — injects `DB_PASSWORD`, `REDIS_AUTH_TOKEN` etc. into the container environment at startup |
+
+> Secrets are injected via the `secrets` field in the task definition (not env vars from the app code).
+
+---
+
+#### 3. ECS Task Role (`{project}-{service}-{env}-task-role`)
+
+One per ECS service. Used by the **running application** inside the container to call AWS APIs at runtime.
+
+| Inline Policy | Permission | Why it's needed |
+|---------------|-----------|----------------|
+| `{service}-s3-policy` | `s3:ListBucket`, `s3:GetBucketLocation` on bucket ARNs; `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:GetObjectVersion`, `s3:ListMultipartUploadParts`, `s3:AbortMultipartUpload` on bucket objects | App can read/write files (uploads, static assets, exports) |
+| `{service}-task-secrets-policy` | `secretsmanager:GetSecretValue`, `secretsmanager:DescribeSecret` on the secret ARN | App can re-read secrets at runtime (e.g. connection refresh, key rotation) |
+| `{service}-cloudwatch-logs-policy` | `logs:CreateLogStream`, `logs:PutLogEvents`, `logs:DescribeLogStreams` on the service log group | App can write structured log events directly from code (supplements the awslogs log driver) |
+
+> **RDS and Redis use password-based authentication** — no IAM policy is needed for database connectivity. Credentials (`DB_PASSWORD`, `REDIS_AUTH_TOKEN`) are stored in Secrets Manager and injected into the container at startup via the execution role. Security is enforced by **security groups** (port 5432 / 6379 open from ECS SG only).
+
+> Policies for S3 and secrets are only created when `enable_s3 = true` / `enable_secrets = true` respectively. No policy is attached when the module is disabled.
+
+---
+
+### Security Groups
+
+#### Connectivity diagram
+
+```
+Internet
+  │
+  ├── [dev] 80/443 → nginx EC2 (public IP)
+  │         nginx on same host → ECS containers (127.0.0.1:port)
+  │
+  └── [prod] 80/443 → ALB SG → ECS SG
+                                 │
+                       ┌─────────┼──────────┐
+                       ▼         ▼          ▼
+                  Redis SG  Postgres SG   S3/Secrets
+                  (6379)    (5432)        (via HTTPS 443)
+```
+
+#### Security Group rules
+
+| SG name | Environment | Inbound rule | Source | Outbound |
+|---------|-------------|--------------|--------|----------|
+| `{prefix}-sg-nginx-001` | dev | TCP 80 | `0.0.0.0/0` | All |
+| `{prefix}-sg-nginx-001` | dev | TCP 443 | `0.0.0.0/0` | All |
+| `{prefix}-sg-nginx-001` | dev | TCP 22 | `var.ssh_allowed_cidrs` (empty = disabled) | All |
+| `{prefix}-sg-ecs-001` | dev | TCP 0–65535 | VPC CIDR (nginx on same host proxies in) | All |
+| `{prefix}-sg-alb-001` | prod | TCP 80 | `0.0.0.0/0` | All |
+| `{prefix}-sg-alb-001` | prod | TCP 443 | `0.0.0.0/0` | All |
+| `{prefix}-sg-ecs-001` | prod | TCP 0–65535 | ALB SG (traffic from ALB only) | All |
+| `{prefix}-sg-redis-001` | both | TCP 6379 | ECS SG only | All |
+| `{prefix}-sg-postgres-001` | both | TCP 5432 | ECS SG only | All |
+
+> **All security groups allow unrestricted outbound** (`0.0.0.0/0`). This is required so ECS containers can reach:
+> - **AWS Secrets Manager** (HTTPS 443) — to resolve secrets at startup
+> - **Amazon ECR** (HTTPS 443) — to pull container images
+> - **Amazon S3** (HTTPS 443) — for file storage API calls
+> - **Amazon CloudWatch Logs** (HTTPS 443) — to push log events
+> - **RDS** (port 5432) and **ElastiCache** (port 6379) — already enforced inbound by their dedicated SGs
+
+---
+
+### How the roles connect end-to-end
+
+```
+ECR ──────────────────────────────────────────────────────► exec-role (pull image)
+Secrets Manager ──► exec-role (inject DB_PASSWORD + REDIS_AUTH_TOKEN at container start)
+                └──► task-role (app re-reads secrets at runtime)
+
+S3 ────────────────────────────────────────────────────────► task-role (GetObject / PutObject)
+RDS ──────────────────────────────────────────────────────► password auth (DB_PASSWORD from Secrets Manager)
+                                                         └──► postgres SG (port 5432 from ecs SG only)
+ElastiCache Redis ────────────────────────────────────────► password auth (REDIS_AUTH_TOKEN from Secrets Manager)
+                                                         └──► redis SG (port 6379 from ecs SG only)
+CloudWatch Logs ──────────────────────────────────────────► exec-role (awslogs log driver)
+                                                         └──► task-role (direct SDK log writes)
+```
+
+---
+
 ## Future: Fargate Migration
 
 To migrate from EC2 to Fargate:

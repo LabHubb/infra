@@ -74,11 +74,30 @@ variable "environment_variables" {
   description = "Environment variables injected into the container"
 }
 
+variable "health_check_grace_period_seconds" {
+  type        = number
+  default     = 60
+  description = "Seconds ECS waits before starting ALB health checks on a new task. Set high enough for your app startup time."
+}
+
 variable "task_policy_json" {
   type        = string
   default     = ""
   description = "Optional additional IAM policy JSON for the task role"
 }
+
+variable "s3_bucket_arns" {
+  type        = list(string)
+  default     = []
+  description = "List of S3 bucket ARNs the ECS task role is allowed to read/write. Leave empty to skip S3 policy."
+}
+
+variable "secrets_manager_secret_arns" {
+  type        = list(string)
+  default     = []
+  description = "List of full Secrets Manager secret ARNs the ECS task role can read at runtime (app-level access, separate from execution-role injection)."
+}
+
 
 variable "tags" {
   type        = map(string)

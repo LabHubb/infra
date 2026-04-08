@@ -22,3 +22,9 @@ output "db_identifier" {
   description = "RDS instance identifier"
   value       = aws_db_instance.this.identifier
 }
+
+output "db_resource_id" {
+  description = "RDS DB resource ID (used for IAM authentication – rds-db:connect)"
+  value       = aws_db_instance.this.resource_id
+}
+

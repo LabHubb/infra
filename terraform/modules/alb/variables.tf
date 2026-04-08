@@ -31,16 +31,18 @@ variable "enable_deletion_protection" {
 
 variable "services" {
   type = map(object({
-    name              = string
-    container_port    = number
-    cpu               = number
-    memory            = number
-    desired_count     = number
-    path_pattern      = string
-    priority          = number
-    health_check_path = string
-    image             = string
-    public            = bool
+    name                  = string
+    container_port        = number
+    cpu                   = number
+    memory                = number
+    desired_count         = number
+    path_pattern          = string
+    priority              = number
+    health_check_path     = string
+    health_check_matcher  = optional(string, "200")   # HTTP status codes ALB accepts as healthy
+    health_check_interval = optional(number, 30)      # seconds between health checks
+    image                 = string
+    public                = bool
   }))
   description = "Map of services to create target groups and listener rules for"
 }

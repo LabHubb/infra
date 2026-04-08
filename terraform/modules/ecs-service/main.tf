@@ -60,7 +60,9 @@ resource "aws_ecs_service" "this" {
   cluster                           = var.cluster_id
   task_definition                   = aws_ecs_task_definition.this.arn
   desired_count                     = var.service.desired_count
-  health_check_grace_period_seconds = var.target_group_arn != "" ? 30 : 0
+  # Grace period gives the container time to start and pass the /api/v1/health
+  # check before ALB marks it unhealthy and triggers a replacement.
+  health_check_grace_period_seconds = var.target_group_arn != "" ? var.health_check_grace_period_seconds : 0
 
   capacity_provider_strategy {
     capacity_provider = var.capacity_provider_name
@@ -149,3 +151,87 @@ resource "aws_iam_role_policy" "task_custom" {
   role   = aws_iam_role.task.id
   policy = var.task_policy_json
 }
+
+# S3 access – read/write to all configured buckets
+data "aws_iam_policy_document" "s3_access" {
+  count = length(var.s3_bucket_arns) > 0 ? 1 : 0
+
+  statement {
+    sid    = "S3ListBuckets"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+    ]
+    resources = var.s3_bucket_arns
+  }
+
+  statement {
+    sid    = "S3ObjectAccess"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:GetObjectVersion",
+      "s3:ListMultipartUploadParts",
+      "s3:AbortMultipartUpload",
+    ]
+    resources = [for arn in var.s3_bucket_arns : "${arn}/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "s3_access" {
+  count  = length(var.s3_bucket_arns) > 0 ? 1 : 0
+  name   = "${local.full_name}-s3-policy"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.s3_access[0].json
+}
+
+# Secrets Manager – runtime access by the application (task role)
+data "aws_iam_policy_document" "task_secrets_access" {
+  count = length(var.secrets_manager_secret_arns) > 0 ? 1 : 0
+
+  statement {
+    sid    = "SecretsManagerRead"
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret",
+    ]
+    resources = var.secrets_manager_secret_arns
+  }
+}
+
+resource "aws_iam_role_policy" "task_secrets_access" {
+  count  = length(var.secrets_manager_secret_arns) > 0 ? 1 : 0
+  name   = "${local.full_name}-task-secrets-policy"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_secrets_access[0].json
+}
+
+# RDS and Redis use password-based authentication (credentials injected via Secrets Manager).
+# No IAM policy is needed for database connectivity — security is enforced by:
+#   - Security groups (port 5432 / 6379 open from ECS SG only)
+#   - Credentials stored in Secrets Manager, injected at container startup via exec-role
+
+# CloudWatch Logs – allow the task to write logs directly
+data "aws_iam_policy_document" "cloudwatch_logs" {
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams",
+    ]
+    resources = ["arn:aws:logs:*:*:log-group:${var.log_group_name}:*"]
+  }
+}
+
+resource "aws_iam_role_policy" "cloudwatch_logs" {
+  name   = "${local.full_name}-cloudwatch-logs-policy"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.cloudwatch_logs.json
+}
+

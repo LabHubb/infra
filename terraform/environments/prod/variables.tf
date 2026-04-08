@@ -64,6 +64,12 @@ variable "enable_alb_deletion_protection" {
   default = true
 }
 
+variable "health_check_grace_period_seconds" {
+  type        = number
+  default     = 60
+  description = "Seconds ECS waits after a task starts before ALB health checks begin. Increase if your app needs longer to connect to DB/Redis."
+}
+
 variable "hosted_zone_name" {
   type        = string
   description = "Route53 hosted zone domain (e.g. example.com)"
@@ -71,16 +77,18 @@ variable "hosted_zone_name" {
 
 variable "services" {
   type = map(object({
-    name              = string
-    container_port    = number
-    cpu               = number
-    memory            = number
-    desired_count     = number
-    path_pattern      = string
-    priority          = number
-    health_check_path = string
-    image_tag         = string
-    public            = bool
+    name                  = string
+    container_port        = number
+    cpu                   = number
+    memory                = number
+    desired_count         = number
+    path_pattern          = string
+    priority              = number
+    health_check_path     = string
+    health_check_matcher  = optional(string, "200")
+    health_check_interval = optional(number, 30)
+    image_tag             = string
+    public                = bool
     environment_variables = optional(list(object({
       name  = string
       value = string

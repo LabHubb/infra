@@ -72,12 +72,15 @@ resource "aws_lb_target_group" "services" {
   target_type = "instance"
 
   health_check {
+    enabled             = true
     path                = each.value.health_check_path
-    healthy_threshold   = 3
+    port                = "traffic-port" # use the same port the container listens on
+    protocol            = "HTTP"
+    matcher             = lookup(each.value, "health_check_matcher", "200")
+    healthy_threshold   = 2
     unhealthy_threshold = 3
     timeout             = 5
-    interval            = 30
-    matcher             = "200-399"
+    interval            = lookup(each.value, "health_check_interval", 30)
   }
 
   deregistration_delay = 30

@@ -23,6 +23,11 @@ asg_desired_capacity = 1
 acm_certificate_arn            = "arn:aws:acm:ap-southeast-1:YOUR_ACCOUNT_ID:certificate/prod-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 enable_alb_deletion_protection = true
 
+# Seconds ECS waits after a container starts before ALB begins health checking
+# against /api/v1/health. Increase if app startup (DB connect, cache warm-up)
+# takes longer than this value.
+health_check_grace_period_seconds = 60
+
 # ── DNS ───────────────────────────────────────────────────────────────────────
 hosted_zone_name = "example.com"
 
@@ -43,16 +48,18 @@ service_dns_map = {
 # The full ECR URL is auto-constructed in main.tf using your AWS account ID + region.
 services = {
   be = {
-    name              = "be"
-    container_port    = 8080
-    cpu               = 1024
-    memory            = 2048
-    desired_count     = 2
-    path_pattern      = "/api/*"
-    priority          = 10
-    health_check_path = "/health"
-    image_tag         = "latest"
-    public            = false
+    name                  = "be"
+    container_port        = 8080
+    cpu                   = 1024
+    memory                = 2048
+    desired_count         = 2
+    path_pattern          = "/api/*"
+    priority              = 10
+    health_check_path     = "/api/v1/health"  # ALB health check endpoint
+    health_check_matcher  = "200"             # only HTTP 200 is considered healthy
+    health_check_interval = 30               # seconds between checks
+    image_tag             = "latest"
+    public                = false
 
     environment_variables = [
       { name = "APP_ENV",      value = "production" },

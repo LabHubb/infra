@@ -256,8 +256,13 @@ module "ecs_services" {
   service                = each.value
   tags                   = local.common_tags
 
-  # Inject all shared secrets into every service
+  # Inject all shared secrets into every service (execution role – container startup)
   secret_arns = var.enable_secrets ? module.secrets[0].secret_arns : {}
+
+  # Task role – runtime access to AWS services
+  s3_bucket_arns              = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
+  secrets_manager_secret_arns = var.enable_secrets ? [module.secrets[0].secret_arn] : []
+  # RDS and Redis: password auth via Secrets Manager (no IAM auth policy needed)
 }
 
 ################################################################################

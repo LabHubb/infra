@@ -261,8 +261,17 @@ module "ecs_services" {
   service                = each.value
   tags                   = local.common_tags
 
-  # Inject secrets from Secrets Manager into every container
+  # Grace period: give containers enough time to start + pass /api/v1/health
+  # before ALB begins health checking. Tune per environment in variables.tf.
+  health_check_grace_period_seconds = var.health_check_grace_period_seconds
+
+  # Inject secrets from Secrets Manager into every container (execution role – container startup)
   secret_arns = var.enable_secrets ? module.secrets[0].secret_arns : {}
+
+  # Task role – runtime access to AWS services
+  s3_bucket_arns              = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
+  secrets_manager_secret_arns = var.enable_secrets ? [module.secrets[0].secret_arn] : []
+  # RDS and Redis: password auth via Secrets Manager (no IAM auth policy needed)
 }
 
 ################################################################################
