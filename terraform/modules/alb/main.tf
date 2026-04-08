@@ -3,7 +3,7 @@
 ################################
 
 resource "aws_lb" "this" {
-  name               = "${var.name_prefix}-alb"
+  name               = "${var.name_prefix}-alb-001"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [var.alb_sg_id]
@@ -65,7 +65,7 @@ resource "aws_lb_listener" "https" {
 resource "aws_lb_target_group" "services" {
   for_each = var.services
 
-  name        = "${var.name_prefix}-${each.value.name}-tg"
+  name        = "${var.name_prefix}-tg-${each.value.name}-001"
   port        = each.value.container_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id

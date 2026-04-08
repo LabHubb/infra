@@ -27,7 +27,7 @@ data "aws_caller_identity" "current" {}
 ################################################################################
 
 locals {
-  name_prefix = "${var.project_name}-${var.environment}"
+  name_prefix = "aws-sg-${var.project_name}-${var.environment}"
 
   common_tags = {
     Project     = var.project_name
@@ -40,9 +40,11 @@ locals {
   ecr_base_url = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
 
   # Merge full image URL into each service definition using account ID + region
+  # ECR repo name format: {project_name}-{service}-{environment}  e.g. labhub-be-prod
   services_with_image = {
     for k, v in var.services : k => merge(v, {
-      image = "${local.ecr_base_url}/${var.project_name}/${v.name}:${v.image_tag}"
+      image                 = "${local.ecr_base_url}/${var.project_name}-${v.name}-${var.environment}:${v.image_tag}"
+      environment_variables = v.environment_variables
     })
   }
 
@@ -62,6 +64,7 @@ module "ecr" {
   source = "../../modules/ecr"
 
   project_name         = var.project_name
+  environment          = var.environment
   repositories         = local.ecr_repository_names
   image_tag_mutability = "IMMUTABLE" # enforce unique tags in prod
   scan_on_push         = true
@@ -248,6 +251,8 @@ module "ecs_services" {
   for_each = var.enable_ecs ? local.services_with_image : {}
 
   name_prefix            = local.name_prefix
+  project_name           = var.project_name
+  environment            = var.environment
   aws_region             = var.aws_region
   cluster_id             = module.ecs_cluster[0].cluster_id
   capacity_provider_name = module.ecs_cluster[0].capacity_provider_name
@@ -261,16 +266,18 @@ module "ecs_services" {
 }
 
 ################################################################################
-# S3 Bucket
+# S3 Buckets
+# Define any number of buckets in var.s3_buckets (terraform.tfvars).
+# Setting enable_s3 = false skips all bucket provisioning.
 ################################################################################
 
 module "s3" {
   count  = var.enable_s3 ? 1 : 0
   source = "../../modules/s3-bucket"
 
-  name_prefix   = local.name_prefix
-  bucket_suffix = var.storage.s3_bucket_name
-  tags          = local.common_tags
+  name_prefix = local.name_prefix
+  buckets     = var.s3_buckets
+  tags        = local.common_tags
 }
 
 ################################################################################
@@ -343,9 +350,14 @@ output "postgres_endpoint" {
   value       = var.enable_postgres ? module.postgres[0].db_endpoint : null
 }
 
-output "s3_bucket_name" {
-  description = "S3 file storage bucket name"
-  value       = var.enable_s3 ? module.s3[0].bucket_name : null
+output "s3_bucket_names" {
+  description = "Map of S3 bucket key → bucket name"
+  value       = var.enable_s3 ? module.s3[0].bucket_names : {}
+}
+
+output "s3_bucket_arns" {
+  description = "Map of S3 bucket key → bucket ARN"
+  value       = var.enable_s3 ? module.s3[0].bucket_arns : {}
 }
 
 output "ecs_cluster_name" {

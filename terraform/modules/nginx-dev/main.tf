@@ -62,7 +62,7 @@ locals {
 ################################
 
 resource "aws_security_group" "nginx" {
-  name        = "${var.name_prefix}-nginx-sg"
+  name        = "${var.name_prefix}-sg-nginx-001"
   description = "Nginx dev LB – HTTP/HTTPS from internet, SSH from allowed CIDRs"
   vpc_id      = var.vpc_id
 
@@ -100,7 +100,7 @@ resource "aws_security_group" "nginx" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-nginx-sg" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-sg-nginx-001" })
 }
 
 ################################
@@ -108,7 +108,7 @@ resource "aws_security_group" "nginx" {
 ################################
 
 resource "aws_launch_template" "nginx" {
-  name_prefix   = "${var.name_prefix}-nginx-lt-"
+  name_prefix   = "${var.name_prefix}-nginx-lt-001-"
   image_id      = var.ami_id
   instance_type = var.instance_type
 
@@ -160,7 +160,7 @@ resource "aws_launch_template" "nginx" {
 ################################
 
 resource "aws_autoscaling_group" "nginx" {
-  name                = "${var.name_prefix}-nginx-asg"
+  name                = "${var.name_prefix}-nginx-asg-001"
   vpc_zone_identifier = var.public_subnet_ids
   min_size            = var.asg_min_size
   max_size            = var.asg_max_size
@@ -175,7 +175,7 @@ resource "aws_autoscaling_group" "nginx" {
 
   tag {
     key                 = "Name"
-    value               = "${var.name_prefix}-nginx-node"
+    value               = "${var.name_prefix}-nginx-node-001"
     propagate_at_launch = true
   }
 

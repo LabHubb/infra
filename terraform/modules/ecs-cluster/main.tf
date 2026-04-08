@@ -3,7 +3,7 @@
 ################################
 
 resource "aws_ecs_cluster" "this" {
-  name = "${var.name_prefix}-cluster"
+  name = "${var.name_prefix}-ecs-cluster-001"
 
   setting {
     name  = "containerInsights"
@@ -25,7 +25,7 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
 }
 
 resource "aws_ecs_capacity_provider" "this" {
-  name = "${var.name_prefix}-capacity-provider"
+  name = "${var.name_prefix}-ecs-capacity-provider-001"
 
   auto_scaling_group_provider {
     auto_scaling_group_arn         = aws_autoscaling_group.this.arn
@@ -47,7 +47,7 @@ resource "aws_ecs_capacity_provider" "this" {
 ################################
 
 resource "aws_launch_template" "this" {
-  name_prefix   = "${var.name_prefix}-lt-"
+  name_prefix   = "${var.name_prefix}-ecs-lt-001-"
   image_id      = var.ami_id
   instance_type = var.instance_type
 
@@ -99,7 +99,7 @@ resource "aws_launch_template" "this" {
 ################################
 
 resource "aws_autoscaling_group" "this" {
-  name                = "${var.name_prefix}-asg"
+  name                = "${var.name_prefix}-ecs-asg-001"
   vpc_zone_identifier = var.subnet_ids
   min_size            = var.asg_min_size
   max_size            = var.asg_max_size
@@ -133,7 +133,7 @@ resource "aws_autoscaling_group" "this" {
 
   tag {
     key                 = "Name"
-    value               = "${var.name_prefix}-ecs-node"
+    value               = "${var.name_prefix}-ecs-node-001"
     propagate_at_launch = true
   }
 
@@ -166,7 +166,7 @@ data "aws_iam_policy_document" "ecs_instance_assume_role" {
 }
 
 resource "aws_iam_role" "ecs_instance" {
-  name               = "${var.name_prefix}-ecs-instance-role"
+  name               = "${var.name_prefix}-ecs-instance-role-001"
   assume_role_policy = data.aws_iam_policy_document.ecs_instance_assume_role.json
   tags               = var.tags
 }
@@ -182,7 +182,7 @@ resource "aws_iam_role_policy_attachment" "ssm_instance" {
 }
 
 resource "aws_iam_instance_profile" "ecs_instance" {
-  name = "${var.name_prefix}-ecs-instance-profile"
+  name = "${var.name_prefix}-ecs-instance-profile-001"
   role = aws_iam_role.ecs_instance.name
   tags = var.tags
 }

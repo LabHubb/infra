@@ -3,14 +3,14 @@
 ################################
 
 resource "aws_db_subnet_group" "this" {
-  name       = "${var.name_prefix}-${var.postgres_name}-subnet-group"
+  name       = "${var.name_prefix}-rds-${var.postgres_name}-subnet-group-001"
   subnet_ids = var.private_subnet_ids
 
   tags = var.tags
 }
 
 resource "aws_db_parameter_group" "this" {
-  name   = "${var.name_prefix}-${var.postgres_name}-pg"
+  name   = "${var.name_prefix}-rds-${var.postgres_name}-pg-001"
   family = "postgres16"
 
   parameter {
@@ -22,7 +22,7 @@ resource "aws_db_parameter_group" "this" {
 }
 
 resource "aws_db_instance" "this" {
-  identifier = "${var.name_prefix}-${var.postgres_name}"
+  identifier = "${var.name_prefix}-rds-${var.postgres_name}-001"
 
   engine                = "postgres"
   engine_version        = var.engine_version
@@ -49,7 +49,7 @@ resource "aws_db_instance" "this" {
   publicly_accessible       = false
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
-  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name_prefix}-${var.postgres_name}-final"
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name_prefix}-rds-${var.postgres_name}-final-snapshot-001"
 
   tags = var.tags
 }

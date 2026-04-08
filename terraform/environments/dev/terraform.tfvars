@@ -66,6 +66,12 @@ services = {
     health_check_path = "/health"
     image_tag         = "latest"
     public            = false
+
+    environment_variables = [
+      { name = "APP_ENV",   value = "development" },
+      { name = "APP_PORT",  value = "8080" },
+      { name = "LOG_LEVEL", value = "debug" },
+    ]
   }
   #
   # fe_admin = {
@@ -79,6 +85,10 @@ services = {
   #   health_check_path = "/"
   #   image_tag         = "latest"
   #   public            = true
+  #   environment_variables = [
+  #     { name = "APP_ENV",  value = "development" },
+  #     { name = "APP_PORT", value = "3000" },
+  #   ]
   # }
   #
   # fe_customer = {
@@ -92,20 +102,75 @@ services = {
   #   health_check_path = "/"
   #   image_tag         = "latest"
   #   public            = true
+  #   environment_variables = [
+  #     { name = "APP_ENV",  value = "development" },
+  #     { name = "APP_PORT", value = "3000" },
+  #   ]
   # }
 }
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 storage = {
-  s3_bucket_name = "files"
-  redis_name     = "redis"
-  postgres_name  = "postgres"
+  redis_name    = "redis"
+  postgres_name = "postgres"
+}
+
+# ── S3 Buckets ────────────────────────────────────────────────────────────────
+# Use 'name' for a fully custom bucket name (ignores name_prefix + suffix).
+# Use 'suffix' to auto-build: labhub-dev-<suffix>.
+#
+# access options:
+#   "private"     → Block Public Access ON  (default – recommended for app data)
+#   "public-read" → Block Public Access OFF, public GetObject policy applied
+#                   (use for static assets served directly from S3 or CloudFront)
+s3_buckets = {
+  bucket_001 = {
+    name               = "aws-sg-labhub-nonprod-s3-bucket-001"
+    access             = "public-read"
+    versioning_enabled = true
+    sse_algorithm      = "AES256"
+
+    noncurrent_version_transition_ia_days      = 30
+    noncurrent_version_transition_glacier_days = 90
+    noncurrent_version_expiration_days         = 365
+    abort_incomplete_multipart_days            = 7
+
+    cors_allowed_origins = ["*"]
+    cors_allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    cors_allowed_headers = ["*"]
+    cors_expose_headers  = ["ETag"]
+    cors_max_age_seconds = 3600
+
+    website_enabled = false
+  }
+
+  bucket_002 = {
+    name               = "aws-sg-labhub-nonprod-s3-bucket-002"
+    access             = "private"
+    versioning_enabled = true
+    sse_algorithm      = "AES256"
+
+    # Lifecycle: move old versions to cheaper storage, delete after 1 year
+    noncurrent_version_transition_ia_days      = 30
+    noncurrent_version_transition_glacier_days = 90
+    noncurrent_version_expiration_days         = 365
+    abort_incomplete_multipart_days            = 7
+
+    # Allow the frontend origin to call the S3 pre-signed URL API directly
+    cors_allowed_origins = ["*"]
+    cors_allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    cors_allowed_headers = ["*"]
+    cors_expose_headers  = ["ETag"]
+    cors_max_age_seconds = 3600
+
+    website_enabled = false
+  }
 }
 
 # ── Database ──────────────────────────────────────────────────────────────────
 rds_instance_class = "db.t4g.micro"
-db_name            = "myapp"
-db_username        = "myapp_admin"
+db_name            = "labhub"
+db_username        = "labhub"
 # db_password      → set via: export TF_VAR_db_password="..."
 
 # ── Redis ─────────────────────────────────────────────────────────────────────
@@ -137,7 +202,7 @@ enable_ecs             = false
 enable_nginx           = false   # requires enable_ecs = true
 enable_redis           = false
 enable_postgres        = false
-enable_s3              = false
+enable_s3              = true
 enable_cloudwatch_logs = false
 enable_route53         = false
 enable_scheduler       = false   # requires enable_ecs + enable_postgres + enable_redis = true

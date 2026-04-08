@@ -9,6 +9,11 @@ variable "project_name" {
   description = "Project name – used as the repository namespace prefix"
 }
 
+variable "environment" {
+  type        = string
+  description = "Environment name (dev, prod) – appended as suffix to ECR repo name"
+}
+
 variable "repositories" {
   type        = list(string)
   description = "List of service names to create ECR repositories for (e.g. [\"be\", \"fe-admin\", \"fe-customer\"])"

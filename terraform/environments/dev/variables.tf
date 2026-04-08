@@ -92,8 +92,12 @@ variable "services" {
     path_pattern      = string
     priority          = number
     health_check_path = string
-    image_tag         = string  # e.g. "latest" or "v1.2.3" – account ID/region auto-injected
+    image_tag         = string
     public            = bool
+    environment_variables = optional(list(object({
+      name  = string
+      value = string
+    })), [])
   }))
   description = "Map of ECS services to deploy"
 }
@@ -113,11 +117,35 @@ variable "service_hostnames" {
 
 variable "storage" {
   type = object({
-    s3_bucket_name = string
-    redis_name     = string
-    postgres_name  = string
+    redis_name    = string
+    postgres_name = string
   })
-  description = "Names for storage resources"
+  description = "Names for Redis and Postgres resources"
+}
+
+variable "s3_buckets" {
+  description = "Map of S3 bucket configurations. Each key becomes a short identifier."
+  type = map(object({
+    name                                       = optional(string, null)
+    suffix                                     = optional(string, "")
+    access                                     = optional(string, "private")
+    versioning_enabled                         = optional(bool, true)
+    sse_algorithm                              = optional(string, "AES256")
+    kms_master_key_id                          = optional(string, null)
+    noncurrent_version_transition_ia_days      = optional(number, 30)
+    noncurrent_version_transition_glacier_days = optional(number, 90)
+    noncurrent_version_expiration_days         = optional(number, 365)
+    abort_incomplete_multipart_days            = optional(number, 7)
+    cors_allowed_origins                       = optional(list(string), [])
+    cors_allowed_methods                       = optional(list(string), ["GET", "PUT", "POST", "DELETE", "HEAD"])
+    cors_allowed_headers                       = optional(list(string), ["*"])
+    cors_expose_headers                        = optional(list(string), [])
+    cors_max_age_seconds                       = optional(number, 3600)
+    website_enabled                            = optional(bool, false)
+    website_index_page                         = optional(string, "index.html")
+    website_error_page                         = optional(string, "error.html")
+  }))
+  default = {}
 }
 
 variable "db_name" {

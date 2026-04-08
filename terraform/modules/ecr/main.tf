@@ -12,7 +12,7 @@
 resource "aws_ecr_repository" "this" {
   for_each = var.enable_ecr ? toset(var.repositories) : toset([])
 
-  name                 = "${var.project_name}/${each.value}"
+  name                 = "${var.project_name}-${each.value}-${var.environment}"
   image_tag_mutability = var.image_tag_mutability
 
   image_scanning_configuration {
@@ -24,7 +24,7 @@ resource "aws_ecr_repository" "this" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}/${each.value}"
+    Name = "${var.project_name}-${each.value}-${var.environment}"
   })
 }
 

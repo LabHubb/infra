@@ -1,11 +1,12 @@
 # IDE
 .idea/
 .vscode/
-
+cost-estimate-prod.md
+cost-estimate-dev.md
 # Terraform – provider binaries & plugin cache (can be 100s of MB)
 **/.terraform/
 .terraform/
-
+mydb.sql
 # Terraform lock file is safe to commit, but provider binaries inside are not
 # .terraform.lock.hcl  ← intentionally NOT ignored (commit this)
 

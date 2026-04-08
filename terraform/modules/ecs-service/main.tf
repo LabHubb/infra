@@ -3,7 +3,7 @@
 ################################
 
 locals {
-  full_name = "${var.name_prefix}-${var.service.name}"
+  full_name = "${var.project_name}-${var.service.name}-${var.environment}"
 }
 
 resource "aws_ecs_task_definition" "this" {
@@ -40,7 +40,7 @@ resource "aws_ecs_task_definition" "this" {
         }
       }
 
-      environment = var.environment_variables
+      environment = var.service.environment_variables
 
       # Secrets pulled from AWS Secrets Manager at container start
       secrets = [

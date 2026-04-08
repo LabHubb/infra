@@ -4,11 +4,11 @@
 ################################
 
 resource "aws_security_group" "this" {
-  name        = "${var.name_prefix}-${var.sg_name}-sg"
+  name        = "${var.name_prefix}-sg-${var.sg_name}-001"
   description = var.description
   vpc_id      = var.vpc_id
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-${var.sg_name}-sg" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-sg-${var.sg_name}-001" })
 }
 
 resource "aws_vpc_security_group_ingress_rule" "this" {

@@ -1,4 +1,4 @@
-project_name = "myapp"
+project_name = "labhub"
 environment  = "prod"
 aws_region   = "ap-southeast-1"
 
@@ -15,9 +15,9 @@ private_subnet_ids = ["subnet-prod-priv-a", "subnet-prod-priv-b"]
 # family/region, giving up to 66% discount with no Terraform changes needed.
 ami_id               = "ami-0abcdef1234567890"
 instance_type        = "t3a.medium"
-asg_min_size         = 2
+asg_min_size         = 1
 asg_max_size         = 10
-asg_desired_capacity = 3
+asg_desired_capacity = 1
 
 # ── ALB / TLS ─────────────────────────────────────────────────────────────────
 acm_certificate_arn            = "arn:aws:acm:ap-southeast-1:YOUR_ACCOUNT_ID:certificate/prod-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -53,6 +53,12 @@ services = {
     health_check_path = "/health"
     image_tag         = "latest"
     public            = false
+
+    environment_variables = [
+      { name = "APP_ENV",      value = "production" },
+      { name = "APP_PORT",     value = "8080" },
+      { name = "LOG_LEVEL",    value = "info" },
+    ]
   }
 
   # fe_admin = {
@@ -66,6 +72,10 @@ services = {
   #   health_check_path = "/"
   #   image_tag         = "latest"
   #   public            = true
+  #   environment_variables = [
+  #     { name = "APP_ENV",  value = "production" },
+  #     { name = "APP_PORT", value = "3000" },
+  #   ]
   # }
   #
   # fe_customer = {
@@ -79,14 +89,70 @@ services = {
   #   health_check_path = "/"
   #   image_tag         = "latest"
   #   public            = true
+  #   environment_variables = [
+  #     { name = "APP_ENV",  value = "production" },
+  #     { name = "APP_PORT", value = "3000" },
+  #   ]
   # }
 }
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 storage = {
-  s3_bucket_name = "files"
-  redis_name     = "redis"
-  postgres_name  = "postgres"
+  redis_name    = "redis"
+  postgres_name = "postgres"
+}
+
+# ── S3 Buckets ────────────────────────────────────────────────────────────────
+# Use 'name' for a fully custom bucket name (ignores name_prefix + suffix).
+# Use 'suffix' to auto-build: labhub-prod-<suffix>.
+#
+# access options:
+#   "private"     → Block Public Access ON  (default – recommended for app data)
+#   "public-read" → Block Public Access OFF, public GetObject policy applied
+#                   (use for static assets served directly from S3 or CloudFront)
+s3_buckets = {
+  bucket_001 = {
+    name               = "aws-sg-labhub-prod-s3-bucket-001"
+    access             = "public-read"
+    versioning_enabled = true
+    sse_algorithm      = "AES256"
+
+    # Lifecycle: move old versions to cheaper storage, delete after 2 years (prod)
+    noncurrent_version_transition_ia_days      = 30
+    noncurrent_version_transition_glacier_days = 90
+    noncurrent_version_expiration_days         = 730
+    abort_incomplete_multipart_days            = 7
+
+    cors_allowed_origins = ["https://app.example.com", "https://admin.example.com"]
+    cors_allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    cors_allowed_headers = ["*"]
+    cors_expose_headers  = ["ETag"]
+    cors_max_age_seconds = 3600
+
+    website_enabled = false
+  }
+
+  bucket_002 = {
+    name               = "aws-sg-labhub-prod-s3-bucket-002"
+    access             = "private"
+    versioning_enabled = true
+    sse_algorithm      = "AES256"
+
+    # Lifecycle: move old versions to cheaper storage, delete after 2 years (prod)
+    noncurrent_version_transition_ia_days      = 30
+    noncurrent_version_transition_glacier_days = 90
+    noncurrent_version_expiration_days         = 730
+    abort_incomplete_multipart_days            = 7
+
+    # Allow the frontend origin to call the S3 pre-signed URL API directly
+    cors_allowed_origins = ["https://app.example.com", "https://admin.example.com"]
+    cors_allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    cors_allowed_headers = ["*"]
+    cors_expose_headers  = ["ETag"]
+    cors_max_age_seconds = 3600
+
+    website_enabled = false
+  }
 }
 
 # ── Database ──────────────────────────────────────────────────────────────────

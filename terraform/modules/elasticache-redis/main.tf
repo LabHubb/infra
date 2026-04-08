@@ -3,22 +3,22 @@
 ################################
 
 resource "aws_elasticache_subnet_group" "this" {
-  name       = "${var.name_prefix}-${var.redis_name}-subnet-group"
+  name       = "${var.name_prefix}-redis-${var.redis_name}-subnet-group-001"
   subnet_ids = var.private_subnet_ids
 
   tags = var.tags
 }
 
 resource "aws_elasticache_parameter_group" "this" {
-  name   = "${var.name_prefix}-${var.redis_name}-pg"
+  name   = "${var.name_prefix}-redis-${var.redis_name}-pg-001"
   family = "redis7"
 
   tags = var.tags
 }
 
 resource "aws_elasticache_replication_group" "this" {
-  replication_group_id = "${var.name_prefix}-${var.redis_name}"
-  description          = "Redis replication group for ${var.name_prefix}-${var.redis_name}"
+  replication_group_id = "${var.name_prefix}-redis-${var.redis_name}-001"
+  description          = "Redis replication group for ${var.name_prefix}-redis-${var.redis_name}-001"
 
   node_type            = var.node_type
   num_cache_clusters   = var.num_cache_clusters

@@ -3,6 +3,16 @@ variable "name_prefix" {
   description = "Prefix for all resource names (project-env)"
 }
 
+variable "project_name" {
+  type        = string
+  description = "Project name – used to build task definition and service name"
+}
+
+variable "environment" {
+  type        = string
+  description = "Environment name (dev, prod) – used to build task definition and service name"
+}
+
 variable "aws_region" {
   type        = string
   description = "AWS region"
@@ -47,6 +57,10 @@ variable "service" {
     health_check_path = string
     image             = string
     public            = bool
+    environment_variables = optional(list(object({
+      name  = string
+      value = string
+    })), [])
   })
   description = "Service configuration object"
 }
