@@ -52,11 +52,47 @@ resource "aws_s3_bucket_public_access_block" "state" {
 }
 
 ################################################################################
+# IAM – tf-user deploy policy (managed here so it stays up-to-date)
+# Run: cd shared/bootstrap && terraform apply
+# to push the latest permissions to AWS whenever iam-deploy-policy.json changes.
+################################################################################
+
+data "aws_iam_user" "tf_user" {
+  user_name = "tf-user"
+}
+
+resource "aws_iam_policy" "tf_deploy" {
+  name        = "tf-user-policy"
+  description = "Permissions for the tf-user Terraform deploy user – managed by bootstrap"
+  policy      = file("${path.module}/iam-deploy-policy.json")
+
+  tags = {
+    Project   = var.project_name
+    ManagedBy = "Terraform"
+  }
+
+  lifecycle {
+    # Allow Terraform to update the policy in-place (creates a new version)
+    create_before_destroy = true
+  }
+}
+
+resource "aws_iam_user_policy_attachment" "tf_deploy" {
+  user       = data.aws_iam_user.tf_user.user_name
+  policy_arn = aws_iam_policy.tf_deploy.arn
+}
+
+################################################################################
 # Outputs
 ################################################################################
 
 output "state_bucket_name" {
   value = aws_s3_bucket.state.id
+}
+
+output "tf_deploy_policy_arn" {
+  value       = aws_iam_policy.tf_deploy.arn
+  description = "ARN of the tf-user deploy policy – update by running terraform apply in shared/bootstrap"
 }
 
 

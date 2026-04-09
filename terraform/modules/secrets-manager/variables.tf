@@ -1,17 +1,22 @@
-variable "name_prefix" {
+variable "project_name" {
   type        = string
-  description = "Prefix path for the secret name (e.g. labhub-dev)"
+  description = "Project name – used to build the secret name: {project_name}-{environment}/{secret_name}"
+}
+
+variable "environment" {
+  type        = string
+  description = "Environment name (dev, prod) – used to build the secret name"
 }
 
 variable "secret_name" {
   type        = string
   default     = "app-secrets"
-  description = "Name suffix for the single combined secret (e.g. 'app-secrets' → labhub-dev/app-secrets)"
+  description = "Secret name suffix. Full name will be: {project_name}-{environment}/{secret_name}"
 }
 
 variable "description" {
   type        = string
-  default     = "Application secrets – managed by Terraform"
+  default     = "Application secrets - managed by Terraform"
   description = "Description shown in the AWS Secrets Manager console"
 }
 

@@ -23,10 +23,21 @@ terraform {
 data "aws_caller_identity" "current" {}
 
 ################################################################################
+# Auto-fetch latest ECS-optimized Amazon Linux 2 AMI (used when ami_id is null)
+################################################################################
+
+data "aws_ssm_parameter" "ecs_ami" {
+  name = "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+}
+
+################################################################################
 # Locals
 ################################################################################
 
 locals {
+  # Use provided ami_id or fall back to the latest ECS-optimized AMI
+  resolved_ami_id = var.ami_id != null ? var.ami_id : data.aws_ssm_parameter.ecs_ami.value
+
   name_prefix = "aws-sg-${var.project_name}-${var.environment}"
 
   common_tags = {
@@ -39,12 +50,32 @@ locals {
   # No account ID ever needs to be hardcoded in tfvars.
   ecr_base_url = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
 
+  # Auto-resolved infra environment variables injected into every ECS service.
+  # These are resolved from module outputs so no hardcoding is needed in tfvars.
+  infra_env_vars = concat(
+    var.enable_secrets ? [
+      { name = "AWS_SECRET_NAME", value = module.secrets[0].secret_name },
+    ] : [],
+    var.enable_postgres ? [
+      { name = "DATABASE_HOST", value = module.postgres[0].db_address },
+      { name = "DATABASE_PORT", value = tostring(module.postgres[0].db_port) },
+      { name = "DATABASE_USER", value = var.db_username },
+      { name = "DATABASE_NAME", value = var.db_name },
+    ] : [],
+    var.enable_redis ? [
+      { name = "REDIS_HOST", value = module.redis[0].redis_endpoint },
+      { name = "REDIS_PORT", value = tostring(module.redis[0].redis_port) },
+    ] : [],
+  )
+
   # Merge full image URL into each service definition using account ID + region
   # ECR repo name format: {project_name}-{service}-{environment}  e.g. labhub-be-prod
   services_with_image = {
     for k, v in var.services : k => merge(v, {
-      image                 = "${local.ecr_base_url}/${var.project_name}-${v.name}-${var.environment}:${v.image_tag}"
-      environment_variables = v.environment_variables
+      image = "${local.ecr_base_url}/${var.project_name}-${v.name}-${var.environment}:${v.image_tag}"
+      # Infra vars (DB, Redis) are prepended; user-defined vars in tfvars come after
+      # and can override them if needed.
+      environment_variables = concat(local.infra_env_vars, v.environment_variables)
     })
   }
 
@@ -81,14 +112,14 @@ module "secrets" {
   count  = var.enable_secrets ? 1 : 0
   source = "../../modules/secrets-manager"
 
-  name_prefix = local.name_prefix
-  secret_name = "app-secrets"
-  description = "All application secrets for ${local.name_prefix} – managed by Terraform"
-  tags        = local.common_tags
+  project_name = var.project_name
+  environment  = var.environment
+  secret_name  = "app-secrets"
+  description  = "All application secrets for ${local.name_prefix} - managed by Terraform"
+  tags         = local.common_tags
 
   # All keys are stored as one JSON object in AWS Secrets Manager:
   #   labhub-prod/app-secrets = { "DB_PASSWORD": "...", "REDIS_AUTH_TOKEN": "..." }
-  # Add a new secret here + declare its variable below + set TF_VAR_xxx in shell.
   secrets = {
     DB_PASSWORD = {
       value = var.db_password
@@ -109,7 +140,7 @@ module "sg_alb" {
 
   name_prefix = local.name_prefix
   sg_name     = "alb"
-  description = "ALB – allow HTTP/HTTPS from the internet"
+  description = "ALB - allow HTTP/HTTPS from the internet"
   vpc_id      = var.vpc_id
   tags        = local.common_tags
 
@@ -125,7 +156,7 @@ module "sg_ecs" {
 
   name_prefix = local.name_prefix
   sg_name     = "ecs"
-  description = "ECS tasks – allow traffic from ALB only"
+  description = "ECS tasks - allow traffic from ALB only"
   vpc_id      = var.vpc_id
   tags        = local.common_tags
 
@@ -146,7 +177,7 @@ module "sg_redis" {
 
   name_prefix = local.name_prefix
   sg_name     = "redis"
-  description = "Redis – allow access from ECS only"
+  description = "Redis - allow access from ECS only"
   vpc_id      = var.vpc_id
   tags        = local.common_tags
 
@@ -167,7 +198,7 @@ module "sg_postgres" {
 
   name_prefix = local.name_prefix
   sg_name     = "postgres"
-  description = "Postgres – allow access from ECS only"
+  description = "Postgres - allow access from ECS only"
   vpc_id      = var.vpc_id
   tags        = local.common_tags
 
@@ -212,7 +243,7 @@ module "ecs_cluster" {
   source = "../../modules/ecs-cluster"
 
   name_prefix                 = local.name_prefix
-  ami_id                      = var.ami_id
+  ami_id                      = local.resolved_ami_id
   instance_type               = var.instance_type
   ecs_sg_id                   = module.sg_ecs[0].sg_id
   subnet_ids                  = var.private_subnet_ids # private subnets in prod

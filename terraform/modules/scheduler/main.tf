@@ -2,14 +2,17 @@
 # Auto Stop/Start Scheduler
 #
 # Schedules:
-#   Start  → 01:00 UTC  (08:00 GMT+7)  Mon–Fri
-#   Stop   → 11:00 UTC  (18:00 GMT+7)  Mon–Fri
+ #   Start  → 01:00 UTC  (08:00 GMT+7)  Mon-Fri
+#   Stop   → 11:00 UTC  (18:00 GMT+7)  Mon-Fri
 #
 # Targets:
-#   • ECS services        – UpdateService desiredCount 0 / original
-#   • ASG (ECS EC2 nodes) – UpdateAutoScalingGroup min/max/desired 0 / original
-#   • RDS instance        – StopDBInstance / StartDBInstance
-#   • ElastiCache         – StopReplicationGroup / StartReplicationGroup
+#   * ECS services        - UpdateService desiredCount 0 / original
+#   * ASG (ECS EC2 nodes) - UpdateAutoScalingGroup min/max/desired 0 / original
+#   * RDS instance        - StopDBInstance / StartDBInstance
+#
+# NOTE: ElastiCache Redis (replication groups) does NOT support stop/start via
+# the AWS API or EventBridge Scheduler. To save cost, consider deleting and
+# recreating the cluster, or use a smaller node type instead.
 ################################################################################
 
 ################################################################################
@@ -54,13 +57,6 @@ data "aws_iam_policy_document" "scheduler_policy" {
     sid       = "RDSStopStart"
     actions   = ["rds:StopDBInstance", "rds:StartDBInstance"]
     resources = ["arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db:${var.rds_identifier}"]
-  }
-
-  # ElastiCache
-  statement {
-    sid       = "ElastiCacheStopStart"
-    actions   = ["elasticache:StopReplicationGroup", "elasticache:StartReplicationGroup"]
-    resources = ["arn:aws:elasticache:${var.aws_region}:${var.aws_account_id}:replicationgroup:${var.redis_replication_group_id}"]
   }
 }
 
@@ -255,52 +251,3 @@ resource "aws_scheduler_schedule" "rds_stop" {
   }
 }
 
-################################################################################
-# ElastiCache Redis – START
-################################################################################
-
-resource "aws_scheduler_schedule" "redis_start" {
-  name       = "${var.name_prefix}-redis-start"
-  group_name = aws_scheduler_schedule_group.this.name
-
-  schedule_expression          = local.start_cron
-  schedule_expression_timezone = "UTC"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = "arn:aws:scheduler:::aws-sdk:elasticache:startReplicationGroup"
-    role_arn = aws_iam_role.scheduler.arn
-
-    input = jsonencode({
-      ReplicationGroupId = var.redis_replication_group_id
-    })
-  }
-}
-
-################################################################################
-# ElastiCache Redis – STOP
-################################################################################
-
-resource "aws_scheduler_schedule" "redis_stop" {
-  name       = "${var.name_prefix}-redis-stop"
-  group_name = aws_scheduler_schedule_group.this.name
-
-  schedule_expression          = local.stop_cron
-  schedule_expression_timezone = "UTC"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = "arn:aws:scheduler:::aws-sdk:elasticache:stopReplicationGroup"
-    role_arn = aws_iam_role.scheduler.arn
-
-    input = jsonencode({
-      ReplicationGroupId = var.redis_replication_group_id
-    })
-  }
-}

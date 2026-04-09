@@ -30,7 +30,8 @@ variable "private_subnet_ids" {
 
 variable "ami_id" {
   type        = string
-  description = "ECS-optimized AMI ID for EC2 launch template"
+  default     = null
+  description = "ECS-optimized AMI ID. Leave null to auto-fetch the latest Amazon Linux 2 ECS-optimized AMI for the region."
 }
 
 variable "instance_type" {

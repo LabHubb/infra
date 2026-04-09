@@ -25,7 +25,7 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
 }
 
 resource "aws_ecs_capacity_provider" "this" {
-  name = "${var.name_prefix}-ecs-capacity-provider-001"
+  name = "cp-${var.name_prefix}-001"
 
   auto_scaling_group_provider {
     auto_scaling_group_arn         = aws_autoscaling_group.this.arn
@@ -60,20 +60,10 @@ resource "aws_launch_template" "this" {
     security_groups             = [var.ecs_sg_id]
   }
 
-  # Spot market options – only applied when use_spot = true
-  dynamic "instance_market_options" {
-    for_each = var.use_spot ? [1] : []
-    content {
-      market_type = "spot"
-      spot_options {
-        # PERSISTENT keeps the request alive after interruption so the ASG
-        # can replace the instance automatically
-        spot_instance_type             = "persistent"
-        instance_interruption_behavior = "terminate"
-        max_price                      = var.spot_max_price != "" ? var.spot_max_price : null
-      }
-    }
-  }
+  # NOTE: Do NOT set instance_market_options (spot) here.
+  # Spot is controlled entirely by mixed_instances_policy in the ASG.
+  # Setting spot in the launch template AND mixed_instances_policy causes:
+  # "Incompatible launch template" error from AWS Auto Scaling.
 
   user_data = base64encode(<<-EOF
     #!/bin/bash
@@ -107,13 +97,17 @@ resource "aws_autoscaling_group" "this" {
 
   protect_from_scale_in = true
 
-  launch_template {
-    id      = aws_launch_template.this.id
-    version = "$Latest"
+  # On-demand: use a simple launch_template block.
+  # Spot: use mixed_instances_policy which embeds its own launch_template spec.
+  # Only one of the two can be set at a time.
+  dynamic "launch_template" {
+    for_each = var.use_spot ? [] : [1]
+    content {
+      id      = aws_launch_template.this.id
+      version = "$Latest"
+    }
   }
 
-  # Spot: use capacity-optimized strategy so AWS picks the pool with the
-  # most available capacity, reducing interruption frequency.
   dynamic "mixed_instances_policy" {
     for_each = var.use_spot ? [1] : []
     content {
@@ -121,6 +115,8 @@ resource "aws_autoscaling_group" "this" {
         on_demand_base_capacity                  = 0
         on_demand_percentage_above_base_capacity = 0
         spot_allocation_strategy                 = "capacity-optimized"
+        # "" means AWS caps at on-demand price; explicit value sets a hard max bid
+        spot_max_price = var.spot_max_price != "" ? var.spot_max_price : null
       }
       launch_template {
         launch_template_specification {

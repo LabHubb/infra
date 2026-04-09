@@ -3,18 +3,20 @@ environment  = "dev"
 aws_region   = "ap-southeast-1"
 
 # ── Networking ────────────────────────────────────────────────────────────────
-vpc_id             = "vpc-0123456789abcdef0"
-vpc_cidr           = "10.0.0.0/16"
-public_subnet_ids  = ["subnet-pub-a", "subnet-pub-b"]
-private_subnet_ids = ["subnet-priv-a", "subnet-priv-b"]
+vpc_id             = "vpc-0edcb9983676899a7"
+vpc_cidr           = "172.31.0.0/16"
+# ECS EC2 + nginx use only 1 subnet (ap-southeast-1a) to keep dev simple and cheap.
+public_subnet_ids  = ["subnet-004654dc97acf9435"]
+# RDS and ElastiCache require at least 2 subnets in different AZs for their subnet groups.
+# We still deploy the DB instances in 1 AZ but the subnet group must span 2 AZs.
+private_subnet_ids = ["subnet-004654dc97acf9435", "subnet-06fd6a05ad6f7df9c"]
 
 # ── ECS / nginx EC2 nodes ─────────────────────────────────────────────────────
-# Get latest ECS-optimized AMI:
-# aws ssm get-parameter --name /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
-ami_id               = "ami-0abcdef1234567890"
-instance_type        = "t3a.medium"
+# ami_id is auto-fetched from SSM Parameter Store (latest ECS-optimized Amazon Linux 2).
+# Override only if you need a specific AMI: ami_id = "ami-xxxxxxxxxxxxxxxxx"
+instance_type        = "t3a.small"  # 1 vCPU, 2GB RAM, AMD
 asg_min_size         = 1
-asg_max_size         = 2
+asg_max_size         = 1
 asg_desired_capacity = 1
 
 # Spot instances – saves ~70% vs on-demand in dev.
@@ -23,8 +25,8 @@ asg_desired_capacity = 1
 # lower Spot market price. Set an explicit price (e.g. "0.05") to bid lower.
 spot_max_price = ""
 
-# SSH access to nginx EC2 (your office/home CIDR, or leave [] to disable)
-ssh_allowed_cidrs = ["203.0.113.0/32"]
+# SSH is handled via AWS Systems Manager (SSM) Session Manager.
+# No port 22 or SSH key needed. Connect via: AWS Console > SSM > Session Manager
 
 # ── DNS ───────────────────────────────────────────────────────────────────────
 hosted_zone_name = "example.com"
@@ -54,23 +56,28 @@ service_hostnames = {
 # ── ECS Services ──────────────────────────────────────────────────────────────
 # Only specify image_tag (e.g. "latest", "v1.2.3").
 # The full ECR URL is auto-constructed in main.tf using your AWS account ID + region.
+#
+# The following environment variables are automatically injected into ALL services
+# from module outputs – do NOT add them manually here:
+#   DATABASE_HOST, DATABASE_PORT, DATABASE_USER, DATABASE_NAME  → from RDS module
+#   REDIS_HOST, REDIS_PORT                                       → from ElastiCache module
 services = {
-  be = {
-    name              = "be-app"
-    container_port    = 8080
-    cpu               = 256
-    memory            = 512
-    desired_count     = 1
-    path_pattern      = "/api/*"
-    priority          = 10
-    health_check_path = "/health"
-    image_tag         = "latest"
-    public            = false
+  be-app = {
+    name                  = "be-app"
+    container_port        = 8080
+    cpu                   = 256
+    memory                = 512
+    desired_count         = 1
+    path_pattern          = "/api/*"
+    priority              = 10
+    health_check_path     = "/api/v1/health"  # ALB health check endpoint
+    health_check_matcher  = "200"             # only HTTP 200 is considered healthy
+    health_check_interval = 30               # seconds between checks
+    image_tag             = "latest"
+    public                = false
 
     environment_variables = [
-      { name = "APP_ENV",   value = "development" },
-      { name = "APP_PORT",  value = "8080" },
-      { name = "LOG_LEVEL", value = "debug" },
+      { name = "DATABASE_SSLMODE",     value = "disable" }
     ]
   }
   #
@@ -197,14 +204,14 @@ log_retention_days = 14
 #   enable_scheduler requires enable_ecs + enable_postgres + enable_redis = true
 #   enable_ecs_services uses enable_cloudwatch_logs + enable_secrets (gracefully optional)
 
-enable_secrets         = false
-enable_ecs             = false
-enable_nginx           = false   # requires enable_ecs = true
-enable_redis           = false
-enable_postgres        = false
+enable_secrets         = true
+enable_ecs             = true
+enable_nginx           = true   # requires enable_ecs = true
+enable_redis           = true
+enable_postgres        = true
 enable_s3              = true
-enable_cloudwatch_logs = false
+enable_cloudwatch_logs = true
 enable_route53         = false
-enable_scheduler       = false   # requires enable_ecs + enable_postgres + enable_redis = true
-enable_ecr             = false   # repos are auto-named from each service's name field in var.services above
+enable_scheduler       = true   # requires enable_ecs + enable_postgres + enable_redis = true
+enable_ecr             = true   # repos are auto-named from each service's name field in var.services above
 

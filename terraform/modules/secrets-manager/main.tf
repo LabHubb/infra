@@ -12,12 +12,12 @@
 ################################
 
 resource "aws_secretsmanager_secret" "this" {
-  name                    = "${var.name_prefix}/secrets-${var.secret_name}-001"
+  name                    = "${var.project_name}-${var.environment}/${var.secret_name}"
   description             = var.description
   recovery_window_in_days = var.recovery_window_in_days
 
   tags = merge(var.tags, {
-    Name = "${var.name_prefix}/secrets-${var.secret_name}-001"
+    Name = "${var.project_name}-${var.environment}/${var.secret_name}"
   })
 }
 

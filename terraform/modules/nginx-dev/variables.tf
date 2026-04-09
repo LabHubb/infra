@@ -3,46 +3,35 @@ variable "name_prefix" {
   description = "Prefix for all resource names"
 }
 
-variable "vpc_id" {
+variable "project_name" {
   type        = string
-  description = "VPC ID"
+  description = "Project name used in task definition family and service name"
 }
 
-variable "public_subnet_ids" {
-  type        = list(string)
-  description = "Public subnet IDs – EC2 nodes will be placed here and get public IPs"
-}
-
-variable "ami_id" {
+variable "environment" {
   type        = string
-  description = "ECS-optimized AMI (Amazon Linux 2) – nginx will be installed on top"
+  description = "Environment name (dev)"
 }
 
-variable "instance_type" {
+variable "aws_region" {
   type        = string
-  default     = "t3a.medium"
-  description = "EC2 instance type"
+  description = "AWS region for CloudWatch log configuration"
 }
 
-variable "ecs_cluster_name" {
+variable "ecs_cluster_id" {
   type        = string
-  description = "ECS cluster name to register the instance into"
+  description = "ECS cluster ID to register the nginx service into"
 }
 
-variable "ecs_sg_id" {
+variable "capacity_provider_name" {
   type        = string
-  description = "ECS security group ID – applied alongside the nginx SG so containers are reachable"
+  description = "ECS capacity provider name to schedule the nginx task on"
 }
 
-variable "ecs_instance_profile_name" {
-  type        = string
-  description = "IAM instance profile name from the ecs-cluster module"
-}
-
-variable "ssh_allowed_cidrs" {
-  type        = list(string)
-  default     = []
-  description = "CIDRs allowed to SSH to the nginx EC2 instances (leave empty to disable)"
+variable "log_retention_days" {
+  type        = number
+  default     = 14
+  description = "CloudWatch log retention in days for nginx logs"
 }
 
 variable "services" {
@@ -53,21 +42,6 @@ variable "services" {
     nginx_hostname = string
   }))
   description = "List of services for nginx upstream + server block generation"
-}
-
-variable "asg_min_size" {
-  type    = number
-  default = 1
-}
-
-variable "asg_max_size" {
-  type    = number
-  default = 2
-}
-
-variable "asg_desired_capacity" {
-  type    = number
-  default = 1
 }
 
 variable "tags" {

@@ -35,7 +35,8 @@ variable "private_subnet_ids" {
 
 variable "ami_id" {
   type        = string
-  description = "ECS-optimized AMI ID (Amazon Linux 2)"
+  default     = null
+  description = "ECS-optimized AMI ID. Leave null to auto-fetch the latest Amazon Linux 2 ECS-optimized AMI for the region."
 }
 
 variable "instance_type" {
@@ -65,11 +66,6 @@ variable "spot_max_price" {
   description = "Max Spot price per hour for ECS EC2 nodes. Empty string = on-demand price cap (recommended)."
 }
 
-variable "ssh_allowed_cidrs" {
-  type        = list(string)
-  default     = []
-  description = "CIDRs allowed to SSH to nginx EC2 instances. Leave empty to disable SSH."
-}
 
 variable "hosted_zone_name" {
   type        = string

@@ -23,10 +23,21 @@ terraform {
 data "aws_caller_identity" "current" {}
 
 ################################################################################
+# Auto-fetch latest ECS-optimized Amazon Linux 2 AMI (used when ami_id is null)
+################################################################################
+
+data "aws_ssm_parameter" "ecs_ami" {
+  name = "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+}
+
+################################################################################
 # Locals
 ################################################################################
 
 locals {
+  # Use provided ami_id or fall back to the latest ECS-optimized AMI
+  resolved_ami_id = var.ami_id != null ? var.ami_id : data.aws_ssm_parameter.ecs_ami.value
+
   name_prefix = "aws-sg-${var.project_name}-${var.environment}"
 
   common_tags = {
@@ -39,12 +50,32 @@ locals {
   # No account ID ever needs to be hardcoded in tfvars.
   ecr_base_url = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
 
+  # Auto-resolved infra environment variables injected into every ECS service.
+  # These are resolved from module outputs so no hardcoding is needed in tfvars.
+  infra_env_vars = concat(
+    var.enable_secrets ? [
+      { name = "AWS_SECRET_NAME", value = module.secrets[0].secret_name },
+    ] : [],
+    var.enable_postgres ? [
+      { name = "DATABASE_HOST", value = module.postgres[0].db_address },
+      { name = "DATABASE_PORT", value = tostring(module.postgres[0].db_port) },
+      { name = "DATABASE_USER", value = var.db_username },
+      { name = "DATABASE_NAME", value = var.db_name },
+    ] : [],
+    var.enable_redis ? [
+      { name = "REDIS_HOST", value = module.redis[0].redis_endpoint },
+      { name = "REDIS_PORT", value = tostring(module.redis[0].redis_port) },
+    ] : [],
+  )
+
   # Merge full image URL into each service definition using account ID + region
   # ECR repo name format: {project_name}-{service}-{environment}  e.g. labhub-be-dev
   services_with_image = {
     for k, v in var.services : k => merge(v, {
-      image                 = "${local.ecr_base_url}/${var.project_name}-${v.name}-${var.environment}:${v.image_tag}"
-      environment_variables = v.environment_variables
+      image = "${local.ecr_base_url}/${var.project_name}-${v.name}-${var.environment}:${v.image_tag}"
+      # Infra vars (DB, Redis) are prepended; user-defined vars in tfvars come after
+      # and can override them if needed.
+      environment_variables = concat(local.infra_env_vars, v.environment_variables)
     })
   }
 
@@ -80,10 +111,11 @@ module "secrets" {
   count  = var.enable_secrets ? 1 : 0
   source = "../../modules/secrets-manager"
 
-  name_prefix = local.name_prefix
-  secret_name = "app-secrets"
-  description = "All application secrets for ${local.name_prefix} – managed by Terraform"
-  tags        = local.common_tags
+  project_name = var.project_name
+  environment  = var.environment
+  secret_name  = "app-secrets"
+  description  = "All application secrets for ${local.name_prefix} - managed by Terraform"
+  tags         = local.common_tags
 
   # All keys are stored as one JSON object in AWS Secrets Manager:
   #   labhub-dev/app-secrets = { "DB_PASSWORD": "...", "REDIS_AUTH_TOKEN": "..." }
@@ -109,17 +141,24 @@ module "sg_ecs" {
 
   name_prefix = local.name_prefix
   sg_name     = "ecs"
-  description = "ECS tasks – allow traffic from nginx on EC2 (same instance)"
+  description = "ECS tasks - allow traffic from nginx on EC2 (same instance)"
   vpc_id      = var.vpc_id
   tags        = local.common_tags
 
   ingress_rules = [
     {
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_ipv4   = "0.0.0.0/0"
+      description = "HTTP from internet to nginx (host network)"
+    },
+    {
       from_port   = 0
       to_port     = 65535
       protocol    = "tcp"
       cidr_ipv4   = var.vpc_cidr
-      description = "All TCP within VPC (nginx on same host proxies to containers)"
+      description = "All TCP within VPC for inter-container communication"
     },
   ]
 }
@@ -130,7 +169,7 @@ module "sg_redis" {
 
   name_prefix = local.name_prefix
   sg_name     = "redis"
-  description = "Redis – allow access from ECS only"
+  description = "Redis - allow access from ECS only"
   vpc_id      = var.vpc_id
   tags        = local.common_tags
 
@@ -151,7 +190,7 @@ module "sg_postgres" {
 
   name_prefix = local.name_prefix
   sg_name     = "postgres"
-  description = "Postgres – allow access from ECS only"
+  description = "Postgres - allow access from ECS only"
   vpc_id      = var.vpc_id
   tags        = local.common_tags
 
@@ -190,7 +229,7 @@ module "ecs_cluster" {
   source = "../../modules/ecs-cluster"
 
   name_prefix                 = local.name_prefix
-  ami_id                      = var.ami_id
+  ami_id                      = local.resolved_ami_id
   instance_type               = var.instance_type
   ecs_sg_id                   = module.sg_ecs[0].sg_id
   subnet_ids                  = var.public_subnet_ids # public subnets for dev
@@ -204,28 +243,23 @@ module "ecs_cluster" {
 }
 
 ################################################################################
-# Nginx on EC2 – reverse proxy / load balancer (replaces ALB in dev)
-# Runs on the same EC2 instances as ECS via user_data
+# Nginx ECS Service – reverse proxy running as a container on the ECS EC2 node
+# Uses host network mode → binds to port 80 on the EC2 public IP directly.
+# No separate EC2 instance or ALB needed in dev.
 ################################################################################
 
 module "nginx" {
   count  = var.enable_nginx && var.enable_ecs ? 1 : 0
   source = "../../modules/nginx-dev"
 
-  name_prefix = local.name_prefix
-  vpc_id      = var.vpc_id
-
-  public_subnet_ids         = var.public_subnet_ids
-  ami_id                    = var.ami_id
-  instance_type             = var.instance_type
-  ecs_cluster_name          = module.ecs_cluster[0].cluster_name
-  ecs_sg_id                 = module.sg_ecs[0].sg_id
-  ecs_instance_profile_name = module.ecs_cluster[0].instance_profile_name
-  ssh_allowed_cidrs         = var.ssh_allowed_cidrs
-  asg_min_size              = var.asg_min_size
-  asg_max_size              = var.asg_max_size
-  asg_desired_capacity      = var.asg_desired_capacity
-  tags                      = local.common_tags
+  name_prefix            = local.name_prefix
+  project_name           = var.project_name
+  environment            = var.environment
+  aws_region             = var.aws_region
+  ecs_cluster_id         = module.ecs_cluster[0].cluster_id
+  capacity_provider_name = module.ecs_cluster[0].capacity_provider_name
+  log_retention_days     = var.log_retention_days
+  tags                   = local.common_tags
 
   services = [
     for k, v in local.services_with_image : {

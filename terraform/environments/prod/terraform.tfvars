@@ -13,7 +13,9 @@ private_subnet_ids = ["subnet-prod-priv-a", "subnet-prod-priv-b"]
 # covers at least: asg_min_size × t3a.medium on-demand hourly rate.
 # Savings Plans apply automatically to all EC2 usage regardless of instance
 # family/region, giving up to 66% discount with no Terraform changes needed.
-ami_id               = "ami-0abcdef1234567890"
+#
+# ami_id is auto-fetched from SSM Parameter Store (latest ECS-optimized Amazon Linux 2).
+# Override only if you need a specific AMI: ami_id = "ami-xxxxxxxxxxxxxxxxx"
 instance_type        = "t3a.medium"
 asg_min_size         = 1
 asg_max_size         = 10
@@ -46,9 +48,14 @@ service_dns_map = {
 # ── ECS Services ──────────────────────────────────────────────────────────────
 # Only specify image_tag (e.g. "latest", "v1.2.3").
 # The full ECR URL is auto-constructed in main.tf using your AWS account ID + region.
+#
+# The following environment variables are automatically injected into ALL services
+# from module outputs – do NOT add them manually here:
+#   DATABASE_HOST, DATABASE_PORT, DATABASE_USER, DATABASE_NAME  → from RDS module
+#   REDIS_HOST, REDIS_PORT                                       → from ElastiCache module
 services = {
-  be = {
-    name                  = "be"
+  be-app = {
+    name                  = "be-app"
     container_port        = 8080
     cpu                   = 1024
     memory                = 2048
@@ -62,9 +69,7 @@ services = {
     public                = false
 
     environment_variables = [
-      { name = "APP_ENV",      value = "production" },
-      { name = "APP_PORT",     value = "8080" },
-      { name = "LOG_LEVEL",    value = "info" },
+      { name = "DATABASE_SSLMODE",     value = "disable" }
     ]
   }
 
