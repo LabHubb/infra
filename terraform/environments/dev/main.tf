@@ -124,8 +124,11 @@ module "secrets" {
     DB_PASSWORD = {
       value = var.db_password
     }
-    REDIS_AUTH_TOKEN = {
-      value = var.redis_auth_token
+    REDIS_PASSWORD = {
+      value = var.redis_password
+    }
+    JWT_SECRET = {
+      value = var.jwt_secret
     }
   }
 }
@@ -327,7 +330,7 @@ module "redis" {
   private_subnet_ids = var.private_subnet_ids
   redis_sg_id        = module.sg_redis[0].sg_id
   node_type          = var.redis_node_type
-  auth_token         = var.redis_auth_token
+  auth_token         = var.redis_password
   tags               = local.common_tags
 }
 

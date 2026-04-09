@@ -30,27 +30,126 @@ Internet
 ```
 
 ### Prod Environment
-```
-Internet
-   │
-   ▼
-[ Route53 ] ── api.example.com / admin.example.com / app.example.com
-   │                (ALB alias records)
-   ▼
-[ ALB ] (public subnets)
-   ├── /api/*    → ECS: be        (port 8080)
-   ├── /admin/*  → ECS: fe-admin  (port 3000)
-   └── /*        → ECS: fe-customer (port 3000)
 
-[ ECS Cluster (EC2, t3a.medium) ] – PRIVATE subnets, no public IP
-   │
-   ├──► [ RDS PostgreSQL (db.t4g.small) ]     ← ECS SG only
-   ├──► [ ElastiCache Redis (cache.t4g.small) ] ← ECS SG only
-   └──► [ S3 Bucket (files) ]
+```mermaid
+flowchart TD
+    %% ── External ──────────────────────────────────────────────────────────
+    Internet(["🌐 Internet"])
+    CF(["☁️ Cloudflare\n(optional CDN / WAF)"])
 
-[ Secrets Manager ] ── DB_PASSWORD, REDIS_AUTH_TOKEN → injected into containers
-[ CloudWatch Logs ] ── /aws/ecs/{project}/prod/{service}
+    %% ── DNS ───────────────────────────────────────────────────────────────
+    subgraph DNS["Route 53  (Hosted Zone: example.com)"]
+        R53_API["api.example.com\n→ ALB alias"]
+        R53_ADM["admin.example.com\n→ ALB alias"]
+        R53_APP["app.example.com\n→ ALB alias"]
+    end
+
+    %% ── Public Subnet ─────────────────────────────────────────────────────
+    subgraph PUB["Public Subnets  (ap-southeast-1a / 1b)"]
+        subgraph ALB_BOX["ALB  (aws-sg-labhub-prod-alb-001)\nSG: 80/443 from 0.0.0.0/0"]
+            ALB["Application Load Balancer\nHTTPS :443  →  HTTP :80 redirect"]
+            TG_BE["Target Group\n/api/*  pri=10\nhealth: /api/v1/health"]
+            TG_ADM["Target Group\n/admin/*  pri=20\nhealth: /"]
+            TG_APP["Target Group\n/*  pri=30\nhealth: /"]
+        end
+    end
+
+    %% ── Private Subnet ────────────────────────────────────────────────────
+    subgraph PRIV["Private Subnets  (ap-southeast-1a / 1b)"]
+        subgraph ECS_BOX["ECS Cluster  (EC2 On-Demand, t3a.medium)\nASG min=1 max=3  |  SG: all TCP from ALB SG"]
+            EC2["EC2 Node\nECS Agent + SSM Agent\n(no public IP, SSM access only)"]
+            SVC_BE["ECS Service: labhub-be-prod\ncontainerPort 8080  cpu=512  mem=1024\ndesiredCount=2"]
+            SVC_ADM["ECS Service: labhub-fe-admin-prod\ncontainerPort 3000  cpu=256  mem=512\ndesiredCount=2"]
+            SVC_APP["ECS Service: labhub-fe-customer-prod\ncontainerPort 3000  cpu=256  mem=512\ndesiredCount=2"]
+        end
+
+        subgraph DATA["Data Layer"]
+            RDS[("RDS PostgreSQL\ndb.t4g.small\nMulti-AZ\nSG: 5432 from ECS SG only")]
+            REDIS[("ElastiCache Redis\ncache.t4g.small\nSG: 6379 from ECS SG only")]
+        end
+    end
+
+    %% ── AWS Managed Services ──────────────────────────────────────────────
+    subgraph MANAGED["AWS Managed Services"]
+        SM["Secrets Manager\nlabhub-prod/app-secrets\nDB_PASSWORD · REDIS_AUTH_TOKEN"]
+        S3["S3 Buckets\naws-sg-labhub-prod-s3-bucket-001  public\naws-sg-labhub-prod-s3-bucket-002  private\nversioning + lifecycle"]
+        CW["CloudWatch Logs\n/aws/ecs/labhub/prod/be\n/aws/ecs/labhub/prod/fe-admin\n/aws/ecs/labhub/prod/fe-customer\nretention: 90 days"]
+        ECR["ECR Repositories\nlabhub-be-prod\nlabhub-fe-admin-prod\nlabhub-fe-customer-prod"]
+        SSM_SVC["AWS Systems Manager\nSession Manager\n(SSH-free EC2 access)"]
+    end
+
+    %% ── IAM ───────────────────────────────────────────────────────────────
+    subgraph IAM["IAM"]
+        EXEC_ROLE["Task Execution Role\nECR pull · CW Logs · SM GetSecretValue"]
+        TASK_ROLE["Task Role\nS3 read/write · SM runtime · CW Logs SDK"]
+        INST_ROLE["EC2 Instance Role\nECS agent · SSM managed instance"]
+    end
+
+    %% ── Flows ─────────────────────────────────────────────────────────────
+    Internet --> CF
+    CF --> DNS
+    Internet --> DNS
+
+    DNS --> ALB
+    ALB --> TG_BE
+    ALB --> TG_ADM
+    ALB --> TG_APP
+
+    TG_BE  -->|"port 8080"| SVC_BE
+    TG_ADM -->|"port 3000"| SVC_ADM
+    TG_APP -->|"port 3000"| SVC_APP
+
+    EC2 --- SVC_BE
+    EC2 --- SVC_ADM
+    EC2 --- SVC_APP
+
+    SVC_BE  -->|"5432 TCP"| RDS
+    SVC_ADM -->|"5432 TCP"| RDS
+    SVC_APP -->|"5432 TCP"| RDS
+
+    SVC_BE  -->|"6379 TCP"| REDIS
+    SVC_ADM -->|"6379 TCP"| REDIS
+    SVC_APP -->|"6379 TCP"| REDIS
+
+    SVC_BE  -->|"HTTPS 443"| S3
+    SVC_ADM -->|"HTTPS 443"| S3
+    SVC_APP -->|"HTTPS 443"| S3
+
+    SVC_BE  -->|"logs"| CW
+    SVC_ADM -->|"logs"| CW
+    SVC_APP -->|"logs"| CW
+
+    EXEC_ROLE -->|"inject secrets at startup"| SVC_BE
+    EXEC_ROLE -->|"inject secrets at startup"| SVC_ADM
+    EXEC_ROLE -->|"inject secrets at startup"| SVC_APP
+
+    EXEC_ROLE -->|"pull image"| ECR
+    SM        -->|"DB_PASSWORD · REDIS_AUTH_TOKEN"| EXEC_ROLE
+
+    TASK_ROLE -->|"runtime S3 / SM / CW"| SVC_BE
+    INST_ROLE -->|"ECS agent reg · SSM"| EC2
+    SSM_SVC   -->|"shell (no SSH)"| EC2
+
+    %% ── Styles ────────────────────────────────────────────────────────────
+    classDef aws fill:#FF9900,color:#000,stroke:#c47200,font-weight:bold
+    classDef data fill:#3F8624,color:#fff,stroke:#2d6318
+    classDef managed fill:#232F3E,color:#fff,stroke:#131921
+    classDef iam fill:#DD344C,color:#fff,stroke:#a3243b
+    classDef net fill:#8C4FFF,color:#fff,stroke:#6a3bbf
+    classDef ext fill:#1A9C3E,color:#fff,stroke:#137a2f
+
+    class ALB,TG_BE,TG_ADM,TG_APP aws
+    class EC2,SVC_BE,SVC_ADM,SVC_APP aws
+    class RDS,REDIS data
+    class SM,S3,CW,ECR,SSM_SVC managed
+    class EXEC_ROLE,TASK_ROLE,INST_ROLE iam
+    class R53_API,R53_ADM,R53_APP net
+    class Internet,CF ext
 ```
+
+> **Rendered diagram:** GitHub, GitLab and most Markdown previewers render Mermaid natively. In JetBrains IDE install the **Mermaid** plugin to preview inline.
+
+> **🖼️ Visual AWS icon diagram:** Open [`architecture-prod.html`](./architecture-prod.html) in any browser to see a fully rendered interactive diagram with AWS-style icons for both **prod** and **dev** environments. No plugins required.
 
 ### Security group rules
 

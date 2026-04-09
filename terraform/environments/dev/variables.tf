@@ -162,10 +162,16 @@ variable "db_password" {
   description = "PostgreSQL master password – stored in Secrets Manager"
 }
 
-variable "redis_auth_token" {
+variable "redis_password" {
   type        = string
   sensitive   = true
   description = "Redis AUTH token – stored in Secrets Manager"
+}
+
+variable "jwt_secret" {
+  type        = string
+  sensitive   = true
+  description = "JWT SECRET – stored in Secrets Manager"
 }
 
 variable "log_retention_days" {

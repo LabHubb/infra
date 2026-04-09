@@ -57,8 +57,8 @@ services = {
   be-app = {
     name                  = "be-app"
     container_port        = 8080
-    cpu                   = 1024
-    memory                = 2048
+    cpu                   = 256
+    memory                = 512
     desired_count         = 2
     path_pattern          = "/api/*"
     priority              = 10
@@ -73,39 +73,58 @@ services = {
     ]
   }
 
-  # fe_admin = {
-  #   name              = "fe-admin"
-  #   container_port    = 3000
-  #   cpu               = 512
-  #   memory            = 1024
-  #   desired_count     = 2
-  #   path_pattern      = "/admin/*"
-  #   priority          = 20
-  #   health_check_path = "/"
-  #   image_tag         = "latest"
-  #   public            = true
-  #   environment_variables = [
-  #     { name = "APP_ENV",  value = "production" },
-  #     { name = "APP_PORT", value = "3000" },
-  #   ]
-  # }
-  #
-  # fe_customer = {
-  #   name              = "fe-customer"
-  #   container_port    = 3000
-  #   cpu               = 512
-  #   memory            = 1024
-  #   desired_count     = 2
-  #   path_pattern      = "/*"
-  #   priority          = 30
-  #   health_check_path = "/"
-  #   image_tag         = "latest"
-  #   public            = true
-  #   environment_variables = [
-  #     { name = "APP_ENV",  value = "production" },
-  #     { name = "APP_PORT", value = "3000" },
-  #   ]
-  # }
+  be-admin = {
+    name                  = "be-admin"
+    container_port        = 8080
+    cpu                   = 256
+    memory                = 512
+    desired_count         = 2
+    path_pattern          = "/admin/api/*"
+    priority              = 10
+    health_check_path     = "/admin/api/v1/health"  # ALB health check endpoint
+    health_check_matcher  = "200"             # only HTTP 200 is considered healthy
+    health_check_interval = 30               # seconds between checks
+    image_tag             = "latest"
+    public                = false
+
+    environment_variables = [
+      { name = "DATABASE_SSLMODE",     value = "disable" }
+    ]
+  }
+
+  fe_admin = {
+    name              = "fe-admin"
+    container_port    = 3000
+    cpu               = 128
+    memory            = 256
+    desired_count     = 2
+    path_pattern      = "/admin/*"
+    priority          = 20
+    health_check_path = "/"
+    image_tag         = "latest"
+    public            = true
+    environment_variables = [
+      { name = "APP_ENV",  value = "production" },
+      { name = "APP_PORT", value = "3000" },
+    ]
+  }
+
+  fe_customer = {
+    name              = "fe-customer"
+    container_port    = 3000
+    cpu               = 128
+    memory            = 256
+    desired_count     = 2
+    path_pattern      = "/*"
+    priority          = 30
+    health_check_path = "/"
+    image_tag         = "latest"
+    public            = true
+    environment_variables = [
+      { name = "APP_ENV",  value = "production" },
+      { name = "APP_PORT", value = "3000" },
+    ]
+  }
 }
 
 # ── Storage ───────────────────────────────────────────────────────────────────
@@ -175,7 +194,7 @@ db_username        = "myapp_admin"
 
 # ── Redis ─────────────────────────────────────────────────────────────────────
 redis_node_type = "cache.t4g.small"
-# redis_auth_token → set via: export TF_VAR_redis_auth_token="..."
+# redis_password → set via: export TF_VAR_redis_password="..."
 
 # ── Observability ─────────────────────────────────────────────────────────────
 log_retention_days = 90

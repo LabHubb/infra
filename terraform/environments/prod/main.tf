@@ -119,13 +119,13 @@ module "secrets" {
   tags         = local.common_tags
 
   # All keys are stored as one JSON object in AWS Secrets Manager:
-  #   labhub-prod/app-secrets = { "DB_PASSWORD": "...", "REDIS_AUTH_TOKEN": "..." }
+  #   labhub-prod/app-secrets = { "DB_PASSWORD": "...", "REDIS_PASSWORD": "..." }
   secrets = {
     DB_PASSWORD = {
       value = var.db_password
     }
-    REDIS_AUTH_TOKEN = {
-      value = var.redis_auth_token
+    REDIS_PASSWORD = {
+      value = var.redis_password
     }
   }
 }
@@ -333,7 +333,7 @@ module "redis" {
   private_subnet_ids = var.private_subnet_ids
   redis_sg_id        = module.sg_redis[0].sg_id
   node_type          = var.redis_node_type
-  auth_token         = var.redis_auth_token
+  auth_token         = var.redis_password
   tags               = local.common_tags
 }
 

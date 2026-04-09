@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>LabHub – Production Architecture</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: #f0f2f5;
+  font-family: "Amazon Ember", "Helvetica Neue", Arial, sans-serif;
+  padding: 32px;
+}
+h1 {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #232f3e;
+  margin-bottom: 28px;
+  letter-spacing: .3px;
+}
+.canvas {
+  margin: 0 auto;
+  width: 1280px;
+  position: relative;
+}
+svg {
+  display: block;
+  width: 1280px;
+  height: 820px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.1);
+}
+</style>
+</head>
+<body>
+<h1>LabHub — AWS Production Architecture (ap-southeast-1)</h1>
+<div class="canvas">
+<svg viewBox="0 0 1280 820" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <!-- Arrow markers -->
+  <marker id="a-or"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#e07a00"/></marker>
+  <marker id="a-bl"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#0073bb"/></marker>
+  <marker id="a-gr"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#1d8102"/></marker>
+  <marker id="a-re"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c0392b"/></marker>
+  <marker id="a-gy"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#888"/></marker>
+  <marker id="a-pu"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#7d3c98"/></marker>
+
+  <!-- Drop shadow -->
+  <filter id="sh" x="-8%" y="-8%" width="116%" height="124%">
+    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000018"/>
+  </filter>
+
+  <!-- AWS icon: Route53 (purple shield) -->
+  <symbol id="ico-r53" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#7d3c98"/>
+    <path d="M24 6 L40 14 L40 30 C40 40 24 44 24 44 C24 44 8 40 8 30 L8 14 Z" fill="none" stroke="white" stroke-width="2"/>
+    <text x="24" y="32" text-anchor="middle" font-size="14" font-weight="800" fill="white" font-family="Arial">53</text>
+  </symbol>
+
+  <!-- AWS icon: ALB (orange with bars) -->
+  <symbol id="ico-alb" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#e07a00"/>
+    <rect x="8" y="20" width="32" height="6" rx="2" fill="white" opacity=".9"/>
+    <line x1="16" y1="26" x2="16" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <line x1="24" y1="26" x2="24" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <line x1="32" y1="26" x2="32" y2="36" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <text x="24" y="15" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="Arial">ALB</text>
+  </symbol>
+
+  <!-- AWS icon: ECS (orange grid) -->
+  <symbol id="ico-ecs" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#e07a00"/>
+    <rect x="8"  y="8"  width="13" height="13" rx="2" fill="white" opacity=".9"/>
+    <rect x="27" y="8"  width="13" height="13" rx="2" fill="white" opacity=".9"/>
+    <rect x="8"  y="27" width="13" height="13" rx="2" fill="white" opacity=".5"/>
+    <rect x="27" y="27" width="13" height="13" rx="2" fill="white" opacity=".5"/>
+  </symbol>
+
+  <!-- AWS icon: EC2 (orange server) -->
+  <symbol id="ico-ec2" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#e07a00"/>
+    <rect x="8"  y="14" width="32" height="8" rx="2" fill="white" opacity=".85"/>
+    <rect x="8"  y="26" width="32" height="8" rx="2" fill="white" opacity=".6"/>
+    <circle cx="34" cy="18" r="3" fill="#ffe082"/>
+  </symbol>
+
+  <!-- AWS icon: RDS (blue cylinder) -->
+  <symbol id="ico-rds" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#1565c0"/>
+    <ellipse cx="24" cy="16" rx="14" ry="5" fill="#90caf9"/>
+    <rect x="10" y="16" width="28" height="16" fill="#64b5f6"/>
+    <ellipse cx="24" cy="32" rx="14" ry="5" fill="#42a5f5"/>
+    <ellipse cx="24" cy="16" rx="14" ry="5" fill="#bbdefb"/>
+  </symbol>
+
+  <!-- AWS icon: ElastiCache (red lightning) -->
+  <symbol id="ico-redis" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#c0392b"/>
+    <path d="M28 8 L16 26 L23 26 L20 40 L32 22 L25 22 Z" fill="#ffcc00" stroke="#e07a00" stroke-width="1"/>
+  </symbol>
+
+  <!-- AWS icon: S3 (green bucket) -->
+  <symbol id="ico-s3" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#1d8102"/>
+    <path d="M12 18 L12 36 Q24 42 36 36 L36 18 Q24 12 12 18 Z" fill="#a5d6a7"/>
+    <ellipse cx="24" cy="18" rx="12" ry="4" fill="#66bb6a"/>
+    <ellipse cx="24" cy="18" rx="12" ry="4" fill="#c8e6c9"/>
+  </symbol>
+
+  <!-- AWS icon: CloudWatch (red sparkline) -->
+  <symbol id="ico-cw" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#e84142"/>
+    <polyline points="4,36 12,22 18,28 26,14 34,22 40,16 44,20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+
+  <!-- AWS icon: Secrets Manager (red lock) -->
+  <symbol id="ico-sm" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#c0392b"/>
+    <rect x="13" y="24" width="22" height="16" rx="4" fill="white" opacity=".9"/>
+    <path d="M18 24 L18 18 Q24 10 30 18 L30 24" fill="none" stroke="white" stroke-width="2.5"/>
+    <circle cx="24" cy="31" r="4" fill="#c0392b"/>
+    <line x1="24" y1="31" x2="24" y2="37" stroke="#c0392b" stroke-width="2"/>
+  </symbol>
+
+  <!-- AWS icon: ECR (orange containers) -->
+  <symbol id="ico-ecr" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#e07a00"/>
+    <rect x="6"  y="10" width="36" height="9" rx="2" fill="white" opacity=".85"/>
+    <rect x="6"  y="23" width="36" height="9" rx="2" fill="white" opacity=".6"/>
+    <rect x="6"  y="36" width="36" height="9" rx="2" fill="white" opacity=".35"/>
+  </symbol>
+
+  <!-- AWS icon: ACM (red lock badge) -->
+  <symbol id="ico-acm" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#c0392b"/>
+    <path d="M24 6 L38 12 L38 28 C38 38 24 44 24 44 C24 44 10 38 10 28 L10 12 Z" fill="none" stroke="white" stroke-width="2"/>
+    <rect x="17" y="26" width="14" height="10" rx="2" fill="white" opacity=".9"/>
+    <path d="M20 26 L20 22 Q24 16 28 22 L28 26" fill="none" stroke="white" stroke-width="2"/>
+  </symbol>
+
+  <!-- AWS icon: SSM (grey terminal) -->
+  <symbol id="ico-ssm" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#546e7a"/>
+    <rect x="8" y="12" width="32" height="24" rx="3" fill="none" stroke="white" stroke-width="1.8"/>
+    <line x1="8" y1="20" x2="40" y2="20" stroke="white" stroke-width="1.4"/>
+    <text x="24" y="34" text-anchor="middle" font-size="11" fill="white" font-family="monospace">&gt;_</text>
+  </symbol>
+
+  <!-- AWS icon: Cloudflare (orange cloud) -->
+  <symbol id="ico-cf" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#f4801a"/>
+    <path d="M10 26 Q10 18 18 18 Q19 12 26 12 Q34 12 34 20 Q40 20 40 26 Z" fill="white" opacity=".9"/>
+    <path d="M10 26 Q10 32 14 32 L38 32 Q42 32 42 28 Q42 24 38 24" fill="white" opacity=".5"/>
+  </symbol>
+
+  <!-- AWS icon: Users (grey person) -->
+  <symbol id="ico-user" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#546e7a"/>
+    <circle cx="24" cy="18" r="9" fill="white" opacity=".9"/>
+    <path d="M6 44 Q24 30 42 44" fill="white" opacity=".85"/>
+  </symbol>
+
+  <!-- IAM Shield -->
+  <symbol id="ico-iam" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="6" fill="#c0392b"/>
+    <path d="M24 6 L38 12 L38 30 C38 40 24 44 24 44 C24 44 10 40 10 30 L10 12 Z" fill="none" stroke="white" stroke-width="2"/>
+    <text x="24" y="30" text-anchor="middle" font-size="9" font-weight="700" fill="white" font-family="Arial">IAM</text>
+  </symbol>
+</defs>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SWIM LANES
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- INTERNET -->
+<rect x="20"  y="14"  width="1240" height="96"  rx="8" fill="#f9f9f9" stroke="#ccc" stroke-width="1"/>
+<text x="34" y="30" font-size="9" font-weight="700" fill="#888" letter-spacing="1" font-family="Arial">INTERNET</text>
+
+<!-- VPC -->
+<rect x="20"  y="126" width="1240" height="660" rx="10" fill="none" stroke="#e07a00" stroke-width="1.5" stroke-dasharray="10,5"/>
+<text x="34" y="143" font-size="9" font-weight="700" fill="#b36a00" letter-spacing="1" font-family="Arial">AWS VPC — ap-southeast-1</text>
+
+<!-- Public Subnet -->
+<rect x="34"  y="150" width="1212" height="148" rx="8" fill="#fffbf0" stroke="#ffcc80" stroke-width="1"/>
+<text x="48" y="165" font-size="9" font-weight="700" fill="#b36a00" letter-spacing="1" font-family="Arial">PUBLIC SUBNETS</text>
+
+<!-- Private Subnet (ECS) -->
+<rect x="34"  y="312" width="1212" height="226" rx="8" fill="#f0f7ff" stroke="#90caf9" stroke-width="1"/>
+<text x="48" y="328" font-size="9" font-weight="700" fill="#0073bb" letter-spacing="1" font-family="Arial">PRIVATE SUBNETS — ECS CLUSTER (EC2 On-Demand · t3a.medium · ASG 1→10)</text>
+
+<!-- Data Layer -->
+<rect x="34"  y="552" width="1212" height="136" rx="8" fill="#f1fff3" stroke="#81c784" stroke-width="1"/>
+<text x="48" y="568" font-size="9" font-weight="700" fill="#1d8102" letter-spacing="1" font-family="Arial">DATA LAYER — PRIVATE SUBNETS</text>
+
+<!-- Managed Services -->
+<rect x="34"  y="702" width="1212" height="78"  rx="8" fill="#fafafa" stroke="#ccc" stroke-width="1"/>
+<text x="48" y="718" font-size="9" font-weight="700" fill="#555" letter-spacing="1" font-family="Arial">AWS MANAGED SERVICES</text>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ROW 0 — INTERNET
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Users -->
+<g transform="translate(52,28)" filter="url(#sh)">
+  <use href="#ico-user" width="48" height="48"/>
+  <text x="24" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">Users</text>
+</g>
+
+<!-- Cloudflare -->
+<g transform="translate(148,28)" filter="url(#sh)">
+  <use href="#ico-cf" width="48" height="48"/>
+  <text x="24" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">Cloudflare</text>
+  <text x="24" y="70" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">CDN / WAF</text>
+</g>
+
+<!-- Route53 -->
+<g transform="translate(280,24)" filter="url(#sh)">
+  <use href="#ico-r53" width="56" height="56"/>
+  <text x="28" y="68" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">Route 53</text>
+  <text x="28" y="78" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">labhub.domain</text>
+  <text x="28" y="88" text-anchor="middle" font-size="7.5" fill="#7d3c98" font-family="Arial">api · admin · app</text>
+</g>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ROW 1 — PUBLIC SUBNETS: ACM + ALB
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- ACM -->
+<g transform="translate(52,170)" filter="url(#sh)">
+  <use href="#ico-acm" width="48" height="48"/>
+  <text x="24" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">ACM</text>
+  <text x="24" y="70" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">*.example.com</text>
+</g>
+
+<!-- ALB box -->
+<rect x="134" y="162" width="1096" height="120" rx="8" fill="white" stroke="#ffcc80" stroke-width="1.2" filter="url(#sh)"/>
+<g transform="translate(148,178)">
+  <use href="#ico-alb" width="48" height="48"/>
+  <text x="24" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">ALB</text>
+  <text x="24" y="71" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">aws-sg-labhub-prod-alb-001</text>
+  <text x="24" y="81" text-anchor="middle" font-size="7" fill="#e07a00" font-family="Arial">HTTPS :443</text>
+  <text x="24" y="91" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">HTTP → redirect</text>
+  <text x="24" y="101" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">SG: 0.0.0.0/0</text>
+</g>
+
+<!-- TG: be-app -->
+<rect x="224" y="170" width="222" height="104" rx="6" fill="#fffbf0" stroke="#ffcc80" stroke-width="1"/>
+<text x="335" y="186" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">TG / be-app</text>
+<text x="335" y="199" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">path: /api/*  ·  priority 10</text>
+<text x="335" y="211" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">port 8080  ·  cpu 256  ·  mem 512</text>
+<text x="335" y="223" text-anchor="middle" font-size="7.5" fill="#0073bb" font-family="Arial">health: /api/v1/health → 200</text>
+<text x="335" y="235" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">interval 30 s</text>
+<text x="335" y="248" text-anchor="middle" font-size="7" fill="#aaa" font-family="Arial">aws-sg-labhub-prod-tg-be-app-001</text>
+<text x="335" y="260" text-anchor="middle" font-size="7" fill="#aaa" font-family="Arial">desired ×2</text>
+
+<!-- TG: be-admin -->
+<rect x="456" y="170" width="222" height="104" rx="6" fill="#fffbf0" stroke="#ffcc80" stroke-width="1"/>
+<text x="567" y="186" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">TG / be-admin</text>
+<text x="567" y="199" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">path: /admin/api/*  ·  priority 10</text>
+<text x="567" y="211" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">port 8080  ·  cpu 256  ·  mem 512</text>
+<text x="567" y="223" text-anchor="middle" font-size="7.5" fill="#0073bb" font-family="Arial">health: /admin/api/v1/health → 200</text>
+<text x="567" y="235" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">interval 30 s</text>
+<text x="567" y="248" text-anchor="middle" font-size="7" fill="#aaa" font-family="Arial">aws-sg-labhub-prod-tg-be-admin-001</text>
+<text x="567" y="260" text-anchor="middle" font-size="7" fill="#aaa" font-family="Arial">desired ×2</text>
+
+<!-- TG: fe-admin -->
+<rect x="688" y="170" width="222" height="104" rx="6" fill="#fffbf0" stroke="#ffcc80" stroke-width="1"/>
+<text x="799" y="186" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">TG / fe-admin</text>
+<text x="799" y="199" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">path: /admin/*  ·  priority 20</text>
+<text x="799" y="211" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">port 3000  ·  cpu 128  ·  mem 256</text>
+<text x="799" y="223" text-anchor="middle" font-size="7.5" fill="#0073bb" font-family="Arial">health: / → 200</text>
+<text x="799" y="248" text-anchor="middle" font-size="7" fill="#aaa" font-family="Arial">aws-sg-labhub-prod-tg-fe-admin-001</text>
+<text x="799" y="260" text-anchor="middle" font-size="7" fill="#aaa" font-family="Arial">desired ×2</text>
+
+<!-- TG: fe-customer -->
+<rect x="920" y="170" width="222" height="104" rx="6" fill="#fffbf0" stroke="#ffcc80" stroke-width="1"/>
+<text x="1031" y="186" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">TG / fe-customer</text>
+<text x="1031" y="199" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">path: /*  ·  priority 30</text>
+<text x="1031" y="211" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">port 3000  ·  cpu 128  ·  mem 256</text>
+<text x="1031" y="223" text-anchor="middle" font-size="7.5" fill="#0073bb" font-family="Arial">health: / → 200</text>
+<text x="1031" y="248" text-anchor="middle" font-size="7" fill="#aaa" font-family="Arial">aws-sg-labhub-prod-tg-fe-customer-001</text>
+<text x="1031" y="260" text-anchor="middle" font-size="7" fill="#aaa" font-family="Arial">desired ×2</text>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ROW 2 — PRIVATE SUBNETS: EC2 + 4 ECS SERVICES
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- EC2 Node -->
+<g transform="translate(52,336)" filter="url(#sh)">
+  <use href="#ico-ec2" width="56" height="56"/>
+  <text x="28" y="68" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">EC2 Node</text>
+  <text x="28" y="79" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">t3a.medium</text>
+  <text x="28" y="90" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">ECS Agent</text>
+  <text x="28" y="101" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">SSM Agent</text>
+  <text x="28" y="114" text-anchor="middle" font-size="7.5" fill="#c0392b" font-family="Arial">No Public IP</text>
+  <text x="28" y="126" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">On-Demand</text>
+  <text x="28" y="137" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">Savings Plan</text>
+</g>
+
+<!-- ECS: be-app -->
+<rect x="134" y="326" width="268" height="192" rx="8" fill="white" stroke="#ffcc80" stroke-width="1.2" filter="url(#sh)"/>
+<rect x="134" y="326" width="268" height="30"  rx="8" fill="#e07a00"/>
+<rect x="134" y="344" width="268" height="12"  fill="#e07a00"/>
+<g transform="translate(142,330)"><use href="#ico-ecs" width="20" height="20"/></g>
+<text x="268" y="346" text-anchor="middle" font-size="9.5" font-weight="700" fill="white" font-family="Arial">labhub-be-app-prod</text>
+<!-- task 1 -->
+<rect x="148" y="366" width="108" height="68" rx="5" fill="#fffbf0" stroke="#ffcc80"/>
+<text x="202" y="381" text-anchor="middle" font-size="8.5" font-weight="600" fill="#232f3e" font-family="Arial">Task 1</text>
+<rect x="154" y="385" width="96" height="12" rx="3" fill="#e07a00" opacity=".7"/>
+<text x="202" y="394" text-anchor="middle" font-size="7.5" fill="white" font-family="Arial">be-app : 8080</text>
+<text x="202" y="410" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">cpu 256 / mem 512</text>
+<text x="202" y="422" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">bridge · hostPort=0</text>
+<!-- task 2 -->
+<rect x="278" y="366" width="108" height="68" rx="5" fill="#fffbf0" stroke="#ffcc80"/>
+<text x="332" y="381" text-anchor="middle" font-size="8.5" font-weight="600" fill="#232f3e" font-family="Arial">Task 2</text>
+<rect x="284" y="385" width="96" height="12" rx="3" fill="#e07a00" opacity=".7"/>
+<text x="332" y="394" text-anchor="middle" font-size="7.5" fill="white" font-family="Arial">be-app : 8080</text>
+<text x="332" y="410" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">cpu 256 / mem 512</text>
+<text x="332" y="422" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">bridge · hostPort=0</text>
+<!-- ecr ref -->
+<rect x="148" y="444" width="238" height="22" rx="4" fill="#f8f9ff" stroke="#dde"/>
+<text x="267" y="459" text-anchor="middle" font-size="7.5" fill="#0073bb" font-family="Arial">ECR: labhub/be-app:latest</text>
+<!-- cw ref -->
+<text x="268" y="493" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">CW: /aws/ecs/labhub/prod/be-app · 90d</text>
+<text x="268" y="504" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">SM env: DATABASE_HOST/PORT/USER/NAME · REDIS_HOST/PORT</text>
+
+<!-- ECS: be-admin -->
+<rect x="418" y="326" width="268" height="192" rx="8" fill="white" stroke="#ffcc80" stroke-width="1.2" filter="url(#sh)"/>
+<rect x="418" y="326" width="268" height="30"  rx="8" fill="#e07a00" opacity=".88"/>
+<rect x="418" y="344" width="268" height="12"  fill="#e07a00" opacity=".88"/>
+<g transform="translate(426,330)"><use href="#ico-ecs" width="20" height="20"/></g>
+<text x="552" y="346" text-anchor="middle" font-size="9.5" font-weight="700" fill="white" font-family="Arial">labhub-be-admin-prod</text>
+<rect x="432" y="366" width="108" height="68" rx="5" fill="#fffbf0" stroke="#ffcc80"/>
+<text x="486" y="381" text-anchor="middle" font-size="8.5" font-weight="600" fill="#232f3e" font-family="Arial">Task 1</text>
+<rect x="438" y="385" width="96" height="12" rx="3" fill="#e07a00" opacity=".65"/>
+<text x="486" y="394" text-anchor="middle" font-size="7.5" fill="white" font-family="Arial">be-admin : 8080</text>
+<text x="486" y="410" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">cpu 256 / mem 512</text>
+<text x="486" y="422" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">bridge · hostPort=0</text>
+<rect x="562" y="366" width="108" height="68" rx="5" fill="#fffbf0" stroke="#ffcc80"/>
+<text x="616" y="381" text-anchor="middle" font-size="8.5" font-weight="600" fill="#232f3e" font-family="Arial">Task 2</text>
+<rect x="568" y="385" width="96" height="12" rx="3" fill="#e07a00" opacity=".65"/>
+<text x="616" y="394" text-anchor="middle" font-size="7.5" fill="white" font-family="Arial">be-admin : 8080</text>
+<text x="616" y="410" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">cpu 256 / mem 512</text>
+<text x="616" y="422" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">bridge · hostPort=0</text>
+<rect x="432" y="444" width="238" height="22" rx="4" fill="#f8f9ff" stroke="#dde"/>
+<text x="551" y="459" text-anchor="middle" font-size="7.5" fill="#0073bb" font-family="Arial">ECR: labhub/be-admin:latest</text>
+<text x="552" y="493" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">CW: /aws/ecs/labhub/prod/be-admin · 90d</text>
+
+<!-- ECS: fe-admin -->
+<rect x="702" y="326" width="268" height="192" rx="8" fill="white" stroke="#ffcc80" stroke-width="1.2" filter="url(#sh)"/>
+<rect x="702" y="326" width="268" height="30"  rx="8" fill="#e07a00" opacity=".75"/>
+<rect x="702" y="344" width="268" height="12"  fill="#e07a00" opacity=".75"/>
+<g transform="translate(710,330)"><use href="#ico-ecs" width="20" height="20"/></g>
+<text x="836" y="346" text-anchor="middle" font-size="9.5" font-weight="700" fill="white" font-family="Arial">labhub-fe-admin-prod</text>
+<rect x="716" y="366" width="108" height="68" rx="5" fill="#fffbf0" stroke="#ffcc80"/>
+<text x="770" y="381" text-anchor="middle" font-size="8.5" font-weight="600" fill="#232f3e" font-family="Arial">Task 1</text>
+<rect x="722" y="385" width="96" height="12" rx="3" fill="#e07a00" opacity=".5"/>
+<text x="770" y="394" text-anchor="middle" font-size="7.5" fill="white" font-family="Arial">fe-admin : 3000</text>
+<text x="770" y="410" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">cpu 128 / mem 256</text>
+<text x="770" y="422" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">bridge · hostPort=0</text>
+<rect x="846" y="366" width="108" height="68" rx="5" fill="#fffbf0" stroke="#ffcc80"/>
+<text x="900" y="381" text-anchor="middle" font-size="8.5" font-weight="600" fill="#232f3e" font-family="Arial">Task 2</text>
+<rect x="852" y="385" width="96" height="12" rx="3" fill="#e07a00" opacity=".5"/>
+<text x="900" y="394" text-anchor="middle" font-size="7.5" fill="white" font-family="Arial">fe-admin : 3000</text>
+<text x="900" y="410" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">cpu 128 / mem 256</text>
+<text x="900" y="422" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">bridge · hostPort=0</text>
+<rect x="716" y="444" width="238" height="22" rx="4" fill="#f8f9ff" stroke="#dde"/>
+<text x="835" y="459" text-anchor="middle" font-size="7.5" fill="#0073bb" font-family="Arial">ECR: labhub/fe-admin:latest</text>
+<text x="836" y="493" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">CW: /aws/ecs/labhub/prod/fe-admin · 90d</text>
+
+<!-- ECS: fe-customer -->
+<rect x="986" y="326" width="242" height="192" rx="8" fill="white" stroke="#ffcc80" stroke-width="1.2" filter="url(#sh)"/>
+<rect x="986" y="326" width="242" height="30"  rx="8" fill="#e07a00" opacity=".6"/>
+<rect x="986" y="344" width="242" height="12"  fill="#e07a00" opacity=".6"/>
+<g transform="translate(994,330)"><use href="#ico-ecs" width="20" height="20"/></g>
+<text x="1107" y="346" text-anchor="middle" font-size="9.5" font-weight="700" fill="white" font-family="Arial">labhub-fe-customer-prod</text>
+<rect x="1000" y="366" width="96" height="68" rx="5" fill="#fffbf0" stroke="#ffcc80"/>
+<text x="1048" y="381" text-anchor="middle" font-size="8.5" font-weight="600" fill="#232f3e" font-family="Arial">Task 1</text>
+<rect x="1006" y="385" width="84" height="12" rx="3" fill="#e07a00" opacity=".4"/>
+<text x="1048" y="394" text-anchor="middle" font-size="7.5" fill="white" font-family="Arial">fe-cust : 3000</text>
+<text x="1048" y="410" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">cpu 128 / mem 256</text>
+<text x="1048" y="422" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">bridge</text>
+<rect x="1116" y="366" width="96" height="68" rx="5" fill="#fffbf0" stroke="#ffcc80"/>
+<text x="1164" y="381" text-anchor="middle" font-size="8.5" font-weight="600" fill="#232f3e" font-family="Arial">Task 2</text>
+<rect x="1122" y="385" width="84" height="12" rx="3" fill="#e07a00" opacity=".4"/>
+<text x="1164" y="394" text-anchor="middle" font-size="7.5" fill="white" font-family="Arial">fe-cust : 3000</text>
+<text x="1164" y="410" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">cpu 128 / mem 256</text>
+<text x="1164" y="422" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">bridge</text>
+<rect x="1000" y="444" width="212" height="22" rx="4" fill="#f8f9ff" stroke="#dde"/>
+<text x="1106" y="459" text-anchor="middle" font-size="7.5" fill="#0073bb" font-family="Arial">ECR: labhub/fe-customer:latest</text>
+<text x="1107" y="493" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">CW: /aws/ecs/labhub/prod/fe-customer · 90d</text>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ROW 3 — DATA LAYER
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- RDS -->
+<g transform="translate(70,570)" filter="url(#sh)">
+  <use href="#ico-rds" width="54" height="54"/>
+  <text x="27" y="66" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">RDS PostgreSQL</text>
+  <text x="27" y="77" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">db.t4g.small</text>
+  <text x="27" y="88" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">port 5432</text>
+  <text x="27" y="100" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">myapp / myapp_admin</text>
+  <text x="27" y="112" text-anchor="middle" font-size="7" fill="#c0392b" font-family="Arial">SG: ← ECS SG only</text>
+</g>
+
+<!-- Redis -->
+<g transform="translate(220,570)" filter="url(#sh)">
+  <use href="#ico-redis" width="54" height="54"/>
+  <text x="27" y="66" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">ElastiCache Redis</text>
+  <text x="27" y="77" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">cache.t4g.small</text>
+  <text x="27" y="88" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">port 6379</text>
+  <text x="27" y="100" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">AUTH token</text>
+  <text x="27" y="112" text-anchor="middle" font-size="7" fill="#c0392b" font-family="Arial">SG: ← ECS SG only</text>
+</g>
+
+<!-- S3 Bucket 001 -->
+<g transform="translate(380,570)" filter="url(#sh)">
+  <use href="#ico-s3" width="54" height="54"/>
+  <text x="27" y="66" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">S3 Bucket 001</text>
+  <text x="27" y="77" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">-s3-bucket-001</text>
+  <text x="27" y="88" text-anchor="middle" font-size="7.5" fill="#1d8102" font-family="Arial">public-read</text>
+  <text x="27" y="99" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">versioned · SSE-AES256</text>
+  <text x="27" y="110" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">lifecycle 730d</text>
+</g>
+
+<!-- S3 Bucket 002 -->
+<g transform="translate(510,570)" filter="url(#sh)">
+  <use href="#ico-s3" width="54" height="54"/>
+  <text x="27" y="66" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">S3 Bucket 002</text>
+  <text x="27" y="77" text-anchor="middle" font-size="7.5" fill="#555" font-family="Arial">-s3-bucket-002</text>
+  <text x="27" y="88" text-anchor="middle" font-size="7.5" fill="#c0392b" font-family="Arial">private</text>
+  <text x="27" y="99" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">versioned · SSE-AES256</text>
+  <text x="27" y="110" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">lifecycle 730d</text>
+</g>
+
+<!-- CloudWatch -->
+<g transform="translate(660,570)" filter="url(#sh)">
+  <use href="#ico-cw" width="54" height="54"/>
+  <text x="27" y="66" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">CloudWatch</text>
+  <text x="27" y="77" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">Logs</text>
+  <text x="27" y="88" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">retention 90 days</text>
+</g>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MANAGED SERVICES ROW
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Secrets Manager -->
+<g transform="translate(800,716)" filter="url(#sh)">
+  <use href="#ico-sm" width="48" height="48"/>
+  <text x="24" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">Secrets Manager</text>
+  <text x="24" y="71" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">labhub-prod/app-secrets</text>
+</g>
+
+<!-- ECR -->
+<g transform="translate(940,716)" filter="url(#sh)">
+  <use href="#ico-ecr" width="48" height="48"/>
+  <text x="24" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">ECR</text>
+  <text x="24" y="71" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">Container Registry</text>
+  <text x="24" y="81" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">be-app · be-admin · fe-*</text>
+</g>
+
+<!-- IAM -->
+<g transform="translate(1080,716)" filter="url(#sh)">
+  <use href="#ico-iam" width="48" height="48"/>
+  <text x="24" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">IAM Roles</text>
+  <text x="24" y="71" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">Exec · Task · EC2 Inst</text>
+</g>
+
+<!-- SSM -->
+<g transform="translate(1180,716)" filter="url(#sh)">
+  <use href="#ico-ssm" width="48" height="48"/>
+  <text x="24" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="#232f3e" font-family="Arial">SSM</text>
+  <text x="24" y="71" text-anchor="middle" font-size="7.5" fill="#888" font-family="Arial">Session Manager</text>
+  <text x="24" y="81" text-anchor="middle" font-size="7" fill="#888" font-family="Arial">SSH-free EC2 shell</text>
+</g>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FLOW ARROWS
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Users → Cloudflare -->
+<line x1="100" y1="52" x2="148" y2="52" fill="none" stroke="#888" stroke-width="1.6" marker-end="url(#a-gy)"/>
+
+<!-- Cloudflare → Route53 -->
+<line x1="196" y1="52" x2="280" y2="52" fill="none" stroke="#888" stroke-width="1.6" marker-end="url(#a-gy)"/>
+<text x="238" y="46" text-anchor="middle" font-size="7.5" fill="#aaa" font-family="Arial">DNS resolve</text>
+
+<!-- Route53 → ALB -->
+<path d="M336 80 Q336 120 380 162" fill="none" stroke="#7d3c98" stroke-width="1.8" marker-end="url(#a-pu)"/>
+<text x="340" y="128" font-size="8" fill="#7d3c98" font-family="Arial">alias record</text>
+
+<!-- ACM → ALB -->
+<line x1="100" y1="194" x2="134" y2="194" fill="none" stroke="#c0392b" stroke-width="1.6" marker-end="url(#a-re)"/>
+<text x="117" y="188" text-anchor="middle" font-size="7.5" fill="#c0392b" font-family="Arial">TLS</text>
+
+<!-- ALB → ECS be-app -->
+<line x1="335" y1="282" x2="268" y2="326" fill="none" stroke="#e07a00" stroke-width="1.8" marker-end="url(#a-or)"/>
+
+<!-- ALB → ECS be-admin -->
+<line x1="567" y1="282" x2="552" y2="326" fill="none" stroke="#e07a00" stroke-width="1.8" marker-end="url(#a-or)"/>
+
+<!-- ALB → ECS fe-admin -->
+<line x1="799" y1="282" x2="836" y2="326" fill="none" stroke="#e07a00" stroke-width="1.8" marker-end="url(#a-or)"/>
+
+<!-- ALB → ECS fe-customer -->
+<line x1="1031" y1="282" x2="1107" y2="326" fill="none" stroke="#e07a00" stroke-width="1.8" marker-end="url(#a-or)"/>
+
+<!-- EC2 hosts ECS (dashed connectors) -->
+<line x1="108" y1="374" x2="134" y2="374" stroke="#ddd" stroke-width="1.2" stroke-dasharray="4,2"/>
+<line x1="108" y1="440" x2="134" y2="440" stroke="#ddd" stroke-width="1.2" stroke-dasharray="4,2"/>
+<line x1="108" y1="374" x2="108" y2="440" stroke="#ddd" stroke-width="1"/>
+
+<!-- ECS → RDS (port 5432) -->
+<line x1="268" y1="518" x2="97"  y2="570" fill="none" stroke="#0073bb" stroke-width="1.7" marker-end="url(#a-bl)"/>
+<text x="158" y="548" font-size="8" fill="#0073bb" font-family="Arial">5432</text>
+<line x1="552" y1="518" x2="130" y2="570" fill="none" stroke="#0073bb" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#a-bl)"/>
+<line x1="836" y1="518" x2="145" y2="570" fill="none" stroke="#0073bb" stroke-width="1.1" stroke-dasharray="4,4" marker-end="url(#a-bl)" opacity=".5"/>
+<line x1="1107" y1="518" x2="150" y2="570" fill="none" stroke="#0073bb" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#a-bl)" opacity=".4"/>
+
+<!-- ECS → Redis (port 6379) -->
+<line x1="268" y1="518" x2="247" y2="570" fill="none" stroke="#0073bb" stroke-width="1.7" marker-end="url(#a-bl)"/>
+<text x="253" y="548" font-size="8" fill="#0073bb" font-family="Arial">6379</text>
+<line x1="552" y1="518" x2="270" y2="570" fill="none" stroke="#0073bb" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#a-bl)"/>
+<line x1="836" y1="518" x2="276" y2="570" fill="none" stroke="#0073bb" stroke-width="1.1" stroke-dasharray="4,4" marker-end="url(#a-bl)" opacity=".5"/>
+
+<!-- ECS → S3 -->
+<line x1="500" y1="518" x2="420" y2="570" fill="none" stroke="#1d8102" stroke-width="1.6" marker-end="url(#a-gr)"/>
+<line x1="650" y1="518" x2="545" y2="570" fill="none" stroke="#1d8102" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#a-gr)"/>
+<text x="468" y="548" font-size="8" fill="#1d8102" font-family="Arial">HTTPS</text>
+
+<!-- ECS → CloudWatch -->
+<line x1="836" y1="518" x2="687" y2="570" fill="none" stroke="#e84142" stroke-width="1.6" marker-end="url(#a-re)"/>
+<text x="772" y="548" font-size="8" fill="#e84142" font-family="Arial">logs</text>
+
+<!-- Secrets Manager → ECS (inject) -->
+<path d="M824 716 Q820 660 600 518" fill="none" stroke="#c0392b" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#a-re)"/>
+<text x="740" y="638" font-size="8" fill="#c0392b" font-family="Arial">inject secrets</text>
+
+<!-- ECR → ECS (image pull) -->
+<path d="M964 716 Q960 660 800 518" fill="none" stroke="#e07a00" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#a-or)"/>
+<text x="900" y="638" font-size="8" fill="#e07a00" font-family="Arial">image pull</text>
+
+<!-- IAM → ECS -->
+<path d="M1104 716 Q1100 680 900 518" fill="none" stroke="#c0392b" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#a-re)" opacity=".7"/>
+<text x="1040" y="648" font-size="7.5" fill="#c0392b" font-family="Arial">roles attach</text>
+
+<!-- SSM → EC2 -->
+<path d="M1204 716 Q1210 690 108 490" fill="none" stroke="#546e7a" stroke-width="1.3" stroke-dasharray="6,3" marker-end="url(#a-gy)"/>
+<text x="700" y="710" font-size="7.5" fill="#888" font-family="Arial">Session Manager — no SSH / no bastion</text>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     LEGEND (bottom strip)
+     ═══════════════════════════════════════════════════════════════ -->
+<rect x="20" y="788" width="1240" height="28" rx="6" fill="white" stroke="#eee"/>
+<!-- orange solid -->
+<line x1="32"  y1="802" x2="60"  y2="802" stroke="#e07a00" stroke-width="1.8" marker-end="url(#a-or)"/>
+<text x="66"  y="806" font-size="8" fill="#555" font-family="Arial">HTTPS traffic (Users → ALB → ECS)</text>
+<!-- blue solid -->
+<line x1="260" y1="802" x2="288" y2="802" stroke="#0073bb" stroke-width="1.8" marker-end="url(#a-bl)"/>
+<text x="294" y="806" font-size="8" fill="#555" font-family="Arial">DB connections (5432 / 6379)</text>
+<!-- green solid -->
+<line x1="470" y1="802" x2="498" y2="802" stroke="#1d8102" stroke-width="1.8" marker-end="url(#a-gr)"/>
+<text x="504" y="806" font-size="8" fill="#555" font-family="Arial">S3 API calls</text>
+<!-- red solid -->
+<line x1="620" y1="802" x2="648" y2="802" stroke="#e84142" stroke-width="1.8" marker-end="url(#a-re)"/>
+<text x="654" y="806" font-size="8" fill="#555" font-family="Arial">CloudWatch Logs</text>
+<!-- red dash -->
+<line x1="780" y1="802" x2="808" y2="802" stroke="#c0392b" stroke-width="1.6" stroke-dasharray="4,2" marker-end="url(#a-re)"/>
+<text x="814" y="806" font-size="8" fill="#555" font-family="Arial">IAM / Secrets (startup + runtime)</text>
+<!-- orange dash -->
+<line x1="1000" y1="802" x2="1028" y2="802" stroke="#e07a00" stroke-width="1.6" stroke-dasharray="4,2" marker-end="url(#a-or)"/>
+<text x="1034" y="806" font-size="8" fill="#555" font-family="Arial">ECR image pull</text>
+<!-- grey dash -->
+<line x1="1150" y1="802" x2="1178" y2="802" stroke="#888" stroke-width="1.4" stroke-dasharray="5,2" marker-end="url(#a-gy)"/>
+<text x="1184" y="806" font-size="8" fill="#555" font-family="Arial">SSM</text>
+
+</svg>
+</div>
+
+<p style="text-align:center;font-size:10px;color:#aaa;margin-top:10px">
+  LabHub · AWS ap-southeast-1 · Terraform managed · April 2026
+</p>
+</body>
+</html>

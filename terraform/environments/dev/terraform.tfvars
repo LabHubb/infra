@@ -182,7 +182,7 @@ db_username        = "labhub"
 
 # ── Redis ─────────────────────────────────────────────────────────────────────
 redis_node_type = "cache.t4g.micro"
-# redis_auth_token → set via: export TF_VAR_redis_auth_token="..."
+# redis_password → set via: export TF_VAR_redis_password="..."
 
 # ── Observability ─────────────────────────────────────────────────────────────
 log_retention_days = 14
