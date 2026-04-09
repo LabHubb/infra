@@ -6,6 +6,9 @@ locals {
   full_name = "${var.project_name}-${var.service.name}-${var.environment}"
 }
 
+# Needed to build the wildcard secret ARN for the task role policy
+data "aws_caller_identity" "current" {}
+
 resource "aws_ecs_task_definition" "this" {
   family                   = local.full_name
   network_mode             = "bridge"
@@ -42,13 +45,8 @@ resource "aws_ecs_task_definition" "this" {
 
       environment = var.service.environment_variables
 
-      # Secrets pulled from AWS Secrets Manager at container start
-      secrets = [
-        for k, arn in var.secret_arns : {
-          name      = k
-          valueFrom = arn
-        }
-      ]
+      # No ECS-native secret injection – the application fetches secrets
+      # from Secrets Manager directly at runtime using the task role.
     }
   ])
 
@@ -117,23 +115,6 @@ resource "aws_iam_role_policy_attachment" "execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Grant execution role access to read Secrets Manager secrets
-data "aws_iam_policy_document" "secrets_access" {
-  count = length(var.secret_arns) > 0 ? 1 : 0
-
-  statement {
-    sid       = "AllowSecretsManagerRead"
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = values(var.secret_arns)
-  }
-}
-
-resource "aws_iam_role_policy" "secrets_access" {
-  count  = length(var.secret_arns) > 0 ? 1 : 0
-  name   = "${local.full_name}-secrets-policy"
-  role   = aws_iam_role.execution.id
-  policy = data.aws_iam_policy_document.secrets_access[0].json
-}
 
 ################################
 # IAM – Task Role
@@ -189,8 +170,10 @@ resource "aws_iam_role_policy" "s3_access" {
 }
 
 # Secrets Manager – runtime access by the application (task role)
+# Resource is built as a wildcard on the secret name so the random suffix
+# AWS appends (e.g. labhub-dev/app-secrets-4WdtvP) is handled automatically.
 data "aws_iam_policy_document" "task_secrets_access" {
-  count = length(var.secrets_manager_secret_arns) > 0 ? 1 : 0
+  count = length(var.secrets_manager_secret_names) > 0 ? 1 : 0
 
   statement {
     sid    = "SecretsManagerRead"
@@ -199,21 +182,25 @@ data "aws_iam_policy_document" "task_secrets_access" {
       "secretsmanager:GetSecretValue",
       "secretsmanager:DescribeSecret",
     ]
-    resources = var.secrets_manager_secret_arns
+    resources = [
+      for name in var.secrets_manager_secret_names :
+      "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${name}*"
+    ]
   }
 }
 
 resource "aws_iam_role_policy" "task_secrets_access" {
-  count  = length(var.secrets_manager_secret_arns) > 0 ? 1 : 0
+  count  = length(var.secrets_manager_secret_names) > 0 ? 1 : 0
   name   = "${local.full_name}-task-secrets-policy"
   role   = aws_iam_role.task.id
   policy = data.aws_iam_policy_document.task_secrets_access[0].json
 }
 
-# RDS and Redis use password-based authentication (credentials injected via Secrets Manager).
-# No IAM policy is needed for database connectivity — security is enforced by:
+# All secrets (DB password, Redis password, JWT secret, etc.) are fetched by
+# the application at runtime via the Secrets Manager SDK using the task role.
+# Security is enforced by:
 #   - Security groups (port 5432 / 6379 open from ECS SG only)
-#   - Credentials stored in Secrets Manager, injected at container startup via exec-role
+#   - Task role IAM policy (secretsmanager:GetSecretValue on the app-secrets ARN)
 
 # CloudWatch Logs – allow the task to write logs directly
 data "aws_iam_policy_document" "cloudwatch_logs" {

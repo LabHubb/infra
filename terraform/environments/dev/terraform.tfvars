@@ -77,7 +77,7 @@ services = {
     public                = false
 
     environment_variables = [
-      { name = "DATABASE_SSLMODE",     value = "disable" }
+      { name = "DATABASE_SSLMODE",     value = "require" },
     ]
   }
   #

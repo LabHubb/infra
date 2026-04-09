@@ -296,13 +296,10 @@ module "ecs_services" {
   # before ALB begins health checking. Tune per environment in variables.tf.
   health_check_grace_period_seconds = var.health_check_grace_period_seconds
 
-  # Inject secrets from Secrets Manager into every container (execution role – container startup)
-  secret_arns = var.enable_secrets ? module.secrets[0].secret_arns : {}
-
   # Task role – runtime access to AWS services
-  s3_bucket_arns              = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
-  secrets_manager_secret_arns = var.enable_secrets ? [module.secrets[0].secret_arn] : []
-  # RDS and Redis: password auth via Secrets Manager (no IAM auth policy needed)
+  s3_bucket_arns               = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
+  secrets_manager_secret_names = var.enable_secrets ? [module.secrets[0].secret_name] : []
+  # App fetches secrets at runtime via Secrets Manager SDK (task role has GetSecretValue)
 }
 
 ################################################################################
@@ -420,11 +417,6 @@ output "secret_arn" {
   value       = var.enable_secrets ? module.secrets[0].secret_arn : null
 }
 
-output "secret_arns" {
-  description = "Map of key → ARN::KEY suffix for ECS task definition injection"
-  value       = var.enable_secrets ? module.secrets[0].secret_arns : null
-  sensitive   = true
-}
 
 output "ecr_repository_urls" {
   description = "ECR repository URLs – empty map when enable_ecr = false"

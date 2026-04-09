@@ -36,10 +36,28 @@ variable "num_cache_clusters" {
   description = "Number of cache clusters (nodes). Use 2+ for Multi-AZ"
 }
 
+variable "transit_encryption_enabled" {
+  type        = bool
+  default     = true
+  description = "Enable in-transit TLS encryption. Set false for dev (no TLS, no auth_token)."
+}
+
+variable "transit_encryption_mode" {
+  type        = string
+  default     = "required"
+  description = "TLS mode: 'required' or 'preferred'. Only used when transit_encryption_enabled = true. Note: 'preferred' cannot be combined with auth_token."
+
+  validation {
+    condition     = contains(["required", "preferred"], var.transit_encryption_mode)
+    error_message = "transit_encryption_mode must be 'required' or 'preferred'."
+  }
+}
+
 variable "auth_token" {
   type        = string
+  default     = null
   sensitive   = true
-  description = "Redis AUTH token (password)"
+  description = "Redis AUTH token (password). Only supported when transit_encryption_enabled = true and transit_encryption_mode = 'required'."
 }
 
 variable "snapshot_retention_limit" {

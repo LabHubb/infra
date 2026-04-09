@@ -60,7 +60,7 @@ locals {
       { name = "DATABASE_HOST", value = module.postgres[0].db_address },
       { name = "DATABASE_PORT", value = tostring(module.postgres[0].db_port) },
       { name = "DATABASE_USER", value = var.db_username },
-      { name = "DATABASE_NAME", value = var.db_name },
+      { name = "DATABASE_DBNAME", value = var.db_name },
     ] : [],
     var.enable_redis ? [
       { name = "REDIS_HOST", value = module.redis[0].redis_endpoint },
@@ -293,13 +293,10 @@ module "ecs_services" {
   service                = each.value
   tags                   = local.common_tags
 
-  # Inject all shared secrets into every service (execution role – container startup)
-  secret_arns = var.enable_secrets ? module.secrets[0].secret_arns : {}
-
   # Task role – runtime access to AWS services
-  s3_bucket_arns              = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
-  secrets_manager_secret_arns = var.enable_secrets ? [module.secrets[0].secret_arn] : []
-  # RDS and Redis: password auth via Secrets Manager (no IAM auth policy needed)
+  s3_bucket_arns               = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
+  secrets_manager_secret_names = var.enable_secrets ? [module.secrets[0].secret_name] : []
+  # App fetches secrets at runtime via Secrets Manager SDK (task role has GetSecretValue)
 }
 
 ################################################################################
@@ -325,13 +322,13 @@ module "redis" {
   count  = var.enable_redis ? 1 : 0
   source = "../../modules/elasticache-redis"
 
-  name_prefix        = local.name_prefix
-  redis_name         = var.storage.redis_name
-  private_subnet_ids = var.private_subnet_ids
-  redis_sg_id        = module.sg_redis[0].sg_id
-  node_type          = var.redis_node_type
-  auth_token         = var.redis_password
-  tags               = local.common_tags
+  name_prefix                = local.name_prefix
+  redis_name                 = var.storage.redis_name
+  private_subnet_ids         = var.private_subnet_ids
+  redis_sg_id                = module.sg_redis[0].sg_id
+  node_type                  = var.redis_node_type
+  transit_encryption_enabled = false   # dev: rely on VPC/SG network security
+  tags                       = local.common_tags
 }
 
 ################################################################################
@@ -451,11 +448,6 @@ output "secret_arn" {
   value       = var.enable_secrets ? module.secrets[0].secret_arn : null
 }
 
-output "secret_arns" {
-  description = "Map of key → ARN::KEY suffix for ECS task definition injection"
-  value       = var.enable_secrets ? module.secrets[0].secret_arns : null
-  sensitive   = true
-}
 
 output "ecr_repository_urls" {
   description = "ECR repository URLs – empty map when enable_ecr = false"

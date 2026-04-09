@@ -34,11 +34,6 @@ variable "target_group_arn" {
   description = "ALB target group ARN for this service. Leave empty in dev (no ALB)."
 }
 
-variable "secret_arns" {
-  type        = map(string)
-  default     = {}
-  description = "Map of env-var name to Secrets Manager secret ARN. Injected into the container as secrets."
-}
 
 variable "log_group_name" {
   type        = string
@@ -92,10 +87,10 @@ variable "s3_bucket_arns" {
   description = "List of S3 bucket ARNs the ECS task role is allowed to read/write. Leave empty to skip S3 policy."
 }
 
-variable "secrets_manager_secret_arns" {
+variable "secrets_manager_secret_names" {
   type        = list(string)
   default     = []
-  description = "List of full Secrets Manager secret ARNs the ECS task role can read at runtime (app-level access, separate from execution-role injection)."
+  description = "List of Secrets Manager secret names (e.g. labhub-dev/app-secrets) the ECS task role can read at runtime. A wildcard ARN is constructed internally so the random suffix AWS appends is handled automatically."
 }
 
 

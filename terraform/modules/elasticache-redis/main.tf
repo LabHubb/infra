@@ -29,8 +29,10 @@ resource "aws_elasticache_replication_group" "this" {
 
   engine_version             = var.engine_version
   at_rest_encryption_enabled = true
-  transit_encryption_enabled = true
-  auth_token                 = var.auth_token
+  transit_encryption_enabled = var.transit_encryption_enabled
+  transit_encryption_mode    = var.transit_encryption_enabled ? var.transit_encryption_mode : null
+  auth_token                 = var.transit_encryption_enabled ? var.auth_token : null
+  apply_immediately          = true
 
   automatic_failover_enabled = var.num_cache_clusters > 1 ? true : false
   multi_az_enabled           = var.num_cache_clusters > 1 ? true : false
