@@ -69,19 +69,20 @@ variable "spot_max_price" {
 
 variable "hosted_zone_name" {
   type        = string
-  description = "Route53 hosted zone domain (e.g. example.com)"
+  default     = ""
+  description = "Route53 hosted zone domain (e.g. example.com). Only needed when enable_route53 = true."
 }
 
 variable "nginx_ec2_public_ips" {
   type        = list(string)
   default     = []
-  description = "Static/Elastic public IPs of nginx EC2 nodes to register in Route53. Update after first apply."
+  description = "Static/Elastic public IPs of nginx EC2 nodes to register in Route53. Only needed when enable_route53 = true."
 }
 
 variable "services" {
   type = map(object({
     name                  = string
-    container_port        = number
+    container_port        = number  # used as both containerPort and hostPort; must be unique per service in dev
     cpu                   = number
     memory                = number
     desired_count         = number
@@ -104,13 +105,8 @@ variable "service_dns_map" {
   type = map(object({
     subdomain = string
   }))
-  description = "Map of service key to Route53 subdomain"
-}
-
-variable "service_hostnames" {
-  type        = map(string)
   default     = {}
-  description = "Map of service key to nginx server_name hostname (e.g. { be = 'api.dev.example.com' })"
+  description = "Map of service key to Route53 subdomain. Only needed when enable_route53 = true."
 }
 
 variable "storage" {
@@ -255,6 +251,7 @@ variable "enable_route53" {
   default     = true
   description = "Enable Route53 DNS A records pointing to nginx EC2 public IPs."
 }
+
 
 variable "enable_ecr" {
   type        = bool

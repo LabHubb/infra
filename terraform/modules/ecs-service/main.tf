@@ -26,10 +26,17 @@ resource "aws_ecs_task_definition" "this" {
       memory    = var.service.memory
       essential = true
 
+      # Fixed host port = container port.
+      # Dev:  nginx (host network) reaches the container via 127.0.0.1:<containerPort>
+      #       because Docker publishes the port to 0.0.0.0:<hostPort> on the EC2 host.
+      # Prod: ALB target group registers against containerPort; hostPort is used
+      #       for the bridge-mode routing on the EC2 instance.
+      # Rule: each service must use a unique containerPort across all services
+      #       running on the same EC2 instance.
       portMappings = [
         {
           containerPort = var.service.container_port
-          hostPort      = 0
+          hostPort      = var.service.container_port
           protocol      = "tcp"
         }
       ]
@@ -44,9 +51,6 @@ resource "aws_ecs_task_definition" "this" {
       }
 
       environment = var.service.environment_variables
-
-      # No ECS-native secret injection – the application fetches secrets
-      # from Secrets Manager directly at runtime using the task role.
     }
   ])
 
@@ -58,8 +62,6 @@ resource "aws_ecs_service" "this" {
   cluster                           = var.cluster_id
   task_definition                   = aws_ecs_task_definition.this.arn
   desired_count                     = var.service.desired_count
-  # Grace period gives the container time to start and pass the /api/v1/health
-  # check before ALB marks it unhealthy and triggers a replacement.
   health_check_grace_period_seconds = var.target_group_arn != "" ? var.health_check_grace_period_seconds : 0
 
   capacity_provider_strategy {
@@ -84,7 +86,7 @@ resource "aws_ecs_service" "this" {
   }
 
   lifecycle {
-    ignore_changes = [desired_count, task_definition]
+    ignore_changes = [desired_count]
   }
 
   tags = var.tags
@@ -115,7 +117,6 @@ resource "aws_iam_role_policy_attachment" "execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-
 ################################
 # IAM – Task Role
 ################################
@@ -133,30 +134,21 @@ resource "aws_iam_role_policy" "task_custom" {
   policy = var.task_policy_json
 }
 
-# S3 access – read/write to all configured buckets
+# S3 access
 data "aws_iam_policy_document" "s3_access" {
   count = length(var.s3_bucket_arns) > 0 ? 1 : 0
-
   statement {
-    sid    = "S3ListBuckets"
-    effect = "Allow"
-    actions = [
-      "s3:ListBucket",
-      "s3:GetBucketLocation",
-    ]
+    sid     = "S3ListBuckets"
+    effect  = "Allow"
+    actions = ["s3:ListBucket", "s3:GetBucketLocation"]
     resources = var.s3_bucket_arns
   }
-
   statement {
     sid    = "S3ObjectAccess"
     effect = "Allow"
     actions = [
-      "s3:GetObject",
-      "s3:PutObject",
-      "s3:DeleteObject",
-      "s3:GetObjectVersion",
-      "s3:ListMultipartUploadParts",
-      "s3:AbortMultipartUpload",
+      "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
+      "s3:GetObjectVersion", "s3:ListMultipartUploadParts", "s3:AbortMultipartUpload",
     ]
     resources = [for arn in var.s3_bucket_arns : "${arn}/*"]
   }
@@ -169,19 +161,13 @@ resource "aws_iam_role_policy" "s3_access" {
   policy = data.aws_iam_policy_document.s3_access[0].json
 }
 
-# Secrets Manager – runtime access by the application (task role)
-# Resource is built as a wildcard on the secret name so the random suffix
-# AWS appends (e.g. labhub-dev/app-secrets-4WdtvP) is handled automatically.
+# Secrets Manager
 data "aws_iam_policy_document" "task_secrets_access" {
   count = length(var.secrets_manager_secret_names) > 0 ? 1 : 0
-
   statement {
     sid    = "SecretsManagerRead"
     effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "secretsmanager:DescribeSecret",
-    ]
+    actions = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
     resources = [
       for name in var.secrets_manager_secret_names :
       "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${name}*"
@@ -196,22 +182,12 @@ resource "aws_iam_role_policy" "task_secrets_access" {
   policy = data.aws_iam_policy_document.task_secrets_access[0].json
 }
 
-# All secrets (DB password, Redis password, JWT secret, etc.) are fetched by
-# the application at runtime via the Secrets Manager SDK using the task role.
-# Security is enforced by:
-#   - Security groups (port 5432 / 6379 open from ECS SG only)
-#   - Task role IAM policy (secretsmanager:GetSecretValue on the app-secrets ARN)
-
-# CloudWatch Logs – allow the task to write logs directly
+# CloudWatch Logs
 data "aws_iam_policy_document" "cloudwatch_logs" {
   statement {
     sid    = "CloudWatchLogs"
     effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:PutLogEvents",
-      "logs:DescribeLogStreams",
-    ]
+    actions = ["logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogStreams"]
     resources = ["arn:aws:logs:*:*:log-group:${var.log_group_name}:*"]
   }
 }
@@ -221,4 +197,3 @@ resource "aws_iam_role_policy" "cloudwatch_logs" {
   role   = aws_iam_role.task.id
   policy = data.aws_iam_policy_document.cloudwatch_logs.json
 }
-

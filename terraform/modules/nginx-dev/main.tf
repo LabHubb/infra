@@ -1,39 +1,36 @@
 ################################
 # Nginx as ECS Task – Dev reverse proxy
 #
-# Runs nginx as an ECS service on the SAME EC2 node as your app containers.
-# Uses "host" network mode so nginx binds directly to port 80 on the EC2
-# public IP – no separate EC2 instance or ALB needed.
-#
-# nginx config is passed via an ECS environment variable and written to disk
-# by the container entrypoint. Each service gets a server block that proxies
-# to localhost:<host_port> (dynamic port assigned by ECS bridge network).
-#
 # Architecture:
-#   Internet → EC2 public IP:80 → nginx (host network, ECS task)
-#                                      → proxy_pass localhost:<container_port>
-#                                        → app ECS tasks (bridge network)
+#   nginx task  → network_mode = "host"   → binds port 80 directly on the EC2 host
+#   app tasks   → network_mode = "bridge" → Docker publishes hostPort on 0.0.0.0:<port>
+#
+# Why 127.0.0.1 works:
+#   Docker bridge mode with a fixed hostPort binds the container port to
+#   0.0.0.0:<hostPort> on the EC2 host network interface.
+#   Nginx runs in host network mode, so it IS on the EC2 host – it can reach
+#   any port published by Docker via 127.0.0.1:<hostPort>.
+#
+#   nginx (host net) → proxy_pass 127.0.0.1:8080
+#                           ↓
+#   Docker NAT rule: 0.0.0.0:8080 → be-app container:8080  ✓
+#
+# Rule: each service must use a unique container_port in terraform.tfvars.
+#   be-app      container_port = 8080
+#   fe-admin    container_port = 3001
+#   fe-customer container_port = 3002
 ################################
 
 locals {
-  nginx_upstream_blocks = join("\n", [
+  nginx_location_blocks = join("\n", [
     for svc in var.services :
-    "upstream ${replace(svc.name, "-", "_")} { server 127.0.0.1:${svc.container_port}; }"
-  ])
-
-  nginx_server_blocks = join("\n", [
-    for svc in var.services : <<-BLOCK
-    server {
-      listen 80;
-      server_name ${svc.nginx_hostname};
-      location ${svc.path_pattern == "/*" ? "/" : trimsuffix(svc.path_pattern, "*")} {
-        proxy_pass         http://${replace(svc.name, "-", "_")};
-        proxy_set_header   Host            $host;
-        proxy_set_header   X-Real-IP       $remote_addr;
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_read_timeout 60s;
-      }
-      location /health { return 200 'ok'; add_header Content-Type text/plain; }
+    <<-BLOCK
+    location ${svc.path_pattern == "/*" ? "/" : trimsuffix(svc.path_pattern, "/*")} {
+      proxy_pass         http://127.0.0.1:${svc.container_port};
+      proxy_set_header   Host            $host;
+      proxy_set_header   X-Real-IP       $remote_addr;
+      proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_read_timeout 60s;
     }
     BLOCK
   ])
@@ -49,8 +46,13 @@ http {
   default_type  application/octet-stream;
   sendfile      on;
   keepalive_timeout 65;
-  ${local.nginx_upstream_blocks}
-  ${local.nginx_server_blocks}
+  server {
+    listen 80 default_server;
+    server_name _;
+${local.nginx_location_blocks}
+    location /health       { return 200 'ok'; add_header Content-Type text/plain; }
+    location /nginx-health { return 200 'ok'; add_header Content-Type text/plain; }
+  }
 }
 CONF
 }
@@ -134,7 +136,7 @@ resource "aws_ecs_task_definition" "nginx" {
 
     # Needs to start before app containers are ready, but health check keeps it stable
     healthCheck = {
-      command     = ["CMD-SHELL", "curl -sf http://localhost/health || exit 1"]
+      command     = ["CMD-SHELL", "curl -sf http://localhost/nginx-health || exit 1"]
       interval    = 15
       timeout     = 5
       retries     = 3
@@ -175,6 +177,6 @@ resource "aws_ecs_service" "nginx" {
   tags = var.tags
 
   lifecycle {
-    ignore_changes = [task_definition]
+    ignore_changes = []
   }
 }

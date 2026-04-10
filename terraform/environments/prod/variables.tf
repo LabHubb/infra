@@ -242,4 +242,3 @@ variable "enable_ecr" {
   default     = true
   description = "Enable ECR repository creation. One repo is automatically created per service name in var.services. Set to false if repos already exist."
 }
-

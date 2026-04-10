@@ -269,7 +269,6 @@ module "nginx" {
       name           = v.name
       container_port = v.container_port
       path_pattern   = v.path_pattern
-      nginx_hostname = lookup(var.service_hostnames, k, "${v.name}.dev.example.com")
     }
   ]
 }
@@ -288,7 +287,7 @@ module "ecs_services" {
   aws_region             = var.aws_region
   cluster_id             = module.ecs_cluster[0].cluster_id
   capacity_provider_name = module.ecs_cluster[0].capacity_provider_name
-  target_group_arn       = "" # No ALB in dev
+  target_group_arn       = ""      # No ALB in dev
   log_group_name         = var.enable_cloudwatch_logs ? module.log_groups[0].log_group_names[each.key] : "/aws/ecs/${var.project_name}/${var.environment}/${each.value.name}"
   service                = each.value
   tags                   = local.common_tags
@@ -296,7 +295,6 @@ module "ecs_services" {
   # Task role – runtime access to AWS services
   s3_bucket_arns               = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
   secrets_manager_secret_names = var.enable_secrets ? [module.secrets[0].secret_name] : []
-  # App fetches secrets at runtime via Secrets Manager SDK (task role has GetSecretValue)
 }
 
 ################################################################################
@@ -412,6 +410,7 @@ module "scheduler" {
 ################################################################################
 # Outputs
 ################################################################################
+
 
 output "ecs_cluster_name" {
   description = "ECS cluster name"

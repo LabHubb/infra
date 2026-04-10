@@ -39,9 +39,8 @@ variable "services" {
     name           = string
     container_port = number
     path_pattern   = string
-    nginx_hostname = string
   }))
-  description = "List of services for nginx upstream + server block generation"
+  description = "List of services nginx will proxy to via 127.0.0.1:<container_port>. Each service must use a unique container_port."
 }
 
 variable "tags" {

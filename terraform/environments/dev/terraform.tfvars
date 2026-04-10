@@ -29,29 +29,12 @@ spot_max_price = ""
 # No port 22 or SSH key needed. Connect via: AWS Console > SSM > Session Manager
 
 # ── DNS ───────────────────────────────────────────────────────────────────────
-hosted_zone_name = "example.com"
-
-# After first apply, note the EC2 public IPs (or assign Elastic IPs) and fill in:
-nginx_ec2_public_ips = [] # e.g. ["13.250.x.x"]
-
-service_dns_map = {
-  be = {
-    subdomain = "api.dev"
-  }
-  fe_admin = {
-    subdomain = "admin.dev"
-  }
-  fe_customer = {
-    subdomain = "app.dev"
-  }
-}
-
-# Nginx server_name per service (must match DNS records above)
-service_hostnames = {
-  be          = "api.dev.example.com"
-  fe_admin    = "admin.dev.example.com"
-  fe_customer = "app.dev.example.com"
-}
+# Route53 is DISABLED in dev (enable_route53 = false).
+# Nginx uses path-based routing – no hostname/DNS required.
+# Access services directly via EC2 public IP:
+#   http://<EC2-public-IP>/api/...    -> be-app
+#   http://<EC2-public-IP>/admin/...  -> fe-admin  (when enabled)
+#   http://<EC2-public-IP>/...        -> fe-customer (when enabled)
 
 # ── ECS Services ──────────────────────────────────────────────────────────────
 # Only specify image_tag (e.g. "latest", "v1.2.3").
@@ -64,7 +47,7 @@ service_hostnames = {
 services = {
   be-app = {
     name                  = "be-app"
-    container_port        = 8080
+    container_port        = 8080   # also used as host port; must be unique per service
     cpu                   = 256
     memory                = 512
     desired_count         = 1
@@ -83,7 +66,7 @@ services = {
   #
   # fe_admin = {
   #   name              = "fe-admin"
-  #   container_port    = 3000
+  #   container_port    = 3001   # must be unique per service (nginx upstream uses this as host port)
   #   cpu               = 256
   #   memory            = 512
   #   desired_count     = 1
@@ -100,7 +83,7 @@ services = {
   #
   # fe_customer = {
   #   name              = "fe-customer"
-  #   container_port    = 3000
+  #   container_port    = 3002   # must be unique per service (nginx upstream uses this as host port)
   #   cpu               = 256
   #   memory            = 512
   #   desired_count     = 1

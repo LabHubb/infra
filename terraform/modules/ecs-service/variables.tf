@@ -28,12 +28,12 @@ variable "capacity_provider_name" {
   description = "ECS capacity provider name"
 }
 
+
 variable "target_group_arn" {
   type        = string
   default     = ""
   description = "ALB target group ARN for this service. Leave empty in dev (no ALB)."
 }
-
 
 variable "log_group_name" {
   type        = string
@@ -44,6 +44,9 @@ variable "service" {
   type = object({
     name              = string
     container_port    = number
+    # host_port is always set equal to container_port (fixed static mapping).
+    # In dev:  nginx upstream → 127.0.0.1:<container_port>  (must be unique per service)
+    # In prod: ALB target group uses container_port; hostPort=container_port is fine with awsvpc or bridge+ALB.
     cpu               = number
     memory            = number
     desired_count     = number
