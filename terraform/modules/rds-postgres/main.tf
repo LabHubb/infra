@@ -18,6 +18,20 @@ resource "aws_db_parameter_group" "this" {
     value = "1"
   }
 
+  # Enable pg_cron extension – must be in shared_preload_libraries before CREATE EXTENSION
+  parameter {
+    name         = "shared_preload_libraries"
+    value        = "pg_cron"
+    apply_method = "pending-reboot"
+  }
+
+  # pg_cron maintenance database – must match the application database name
+  parameter {
+    name         = "cron.database_name"
+    value        = var.db_name
+    apply_method = "pending-reboot"
+  }
+
   tags = var.tags
 }
 
