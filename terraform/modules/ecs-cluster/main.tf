@@ -28,8 +28,12 @@ resource "aws_ecs_capacity_provider" "this" {
   name = "cp-${var.name_prefix}-001"
 
   auto_scaling_group_provider {
-    auto_scaling_group_arn         = aws_autoscaling_group.this.arn
-    managed_termination_protection = "ENABLED"
+    auto_scaling_group_arn = aws_autoscaling_group.this.arn
+
+    # DISABLED: managed termination protection requires protect_from_scale_in = true
+    # on the ASG, which would prevent scaling to 0 (used by the stop scheduler).
+    # ECS graceful draining is still handled by the ECS agent on the instance itself.
+    managed_termination_protection = "DISABLED"
 
     managed_scaling {
       maximum_scaling_step_size = 5
@@ -95,7 +99,11 @@ resource "aws_autoscaling_group" "this" {
   max_size            = var.asg_max_size
   desired_capacity    = var.asg_desired_capacity
 
-  protect_from_scale_in = true
+  # Do NOT set protect_from_scale_in = true at the ASG level.
+  # ECS Capacity Provider managed_termination_protection = "ENABLED" handles
+  # graceful task draining by toggling instance-level scale-in protection
+  # dynamically. ASG-level protection would block the scheduler from scaling to 0.
+  protect_from_scale_in = false
 
   # On-demand: use a simple launch_template block.
   # Spot: use mixed_instances_policy which embeds its own launch_template spec.

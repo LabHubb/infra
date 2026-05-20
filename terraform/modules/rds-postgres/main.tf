@@ -2,6 +2,16 @@
 # RDS PostgreSQL
 ################################
 
+locals {
+  # Derive parameter group family from the major version of engine_version
+  # e.g. "18.3" -> "postgres18", "16.6" -> "postgres16"
+  pg_major_version = split(".", var.engine_version)[0]
+  pg_family        = "postgres${local.pg_major_version}"
+
+  # log_connections changed from boolean to enum in PostgreSQL 18
+  log_connections_value = tonumber(local.pg_major_version) >= 18 ? "all" : "1"
+}
+
 resource "aws_db_subnet_group" "this" {
   name       = "${var.name_prefix}-rds-${var.postgres_name}-subnet-group-001"
   subnet_ids = var.private_subnet_ids
@@ -10,12 +20,12 @@ resource "aws_db_subnet_group" "this" {
 }
 
 resource "aws_db_parameter_group" "this" {
-  name   = "${var.name_prefix}-rds-${var.postgres_name}-pg-001"
-  family = "postgres16"
+  name_prefix = "${var.name_prefix}-rds-${var.postgres_name}-pg-"
+  family      = local.pg_family
 
   parameter {
     name  = "log_connections"
-    value = "1"
+    value = local.log_connections_value
   }
 
   # Enable pg_cron extension – must be in shared_preload_libraries before CREATE EXTENSION
@@ -30,6 +40,10 @@ resource "aws_db_parameter_group" "this" {
     name         = "cron.database_name"
     value        = var.db_name
     apply_method = "pending-reboot"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 
   tags = var.tags
@@ -59,11 +73,12 @@ resource "aws_db_instance" "this" {
   backup_window           = "03:00-04:00"
   maintenance_window      = "Mon:04:00-Mon:05:00"
 
-  multi_az                  = var.multi_az
-  publicly_accessible       = false
-  deletion_protection       = var.deletion_protection
-  skip_final_snapshot       = var.skip_final_snapshot
-  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name_prefix}-rds-${var.postgres_name}-final-snapshot-001"
+  multi_az                    = var.multi_az
+  publicly_accessible         = false
+  deletion_protection         = var.deletion_protection
+  skip_final_snapshot         = var.skip_final_snapshot
+  allow_major_version_upgrade = true
+  final_snapshot_identifier   = var.skip_final_snapshot ? null : "${var.name_prefix}-rds-${var.postgres_name}-final-snapshot-001"
 
   tags = var.tags
 }

@@ -119,13 +119,31 @@ module "secrets" {
   tags         = local.common_tags
 
   # All keys are stored as one JSON object in AWS Secrets Manager:
-  #   labhub-prod/app-secrets = { "DB_PASSWORD": "...", "REDIS_PASSWORD": "..." }
+  #   labhub-prod/app-secrets = { "DB_PASSWORD": "...", "REDIS_PASSWORD": "...", ... }
   secrets = {
     DB_PASSWORD = {
       value = var.db_password
     }
     REDIS_PASSWORD = {
       value = var.redis_password
+    }
+    PAYMENT_CLIENT_ID = {
+      value = var.payment_client_id
+    }
+    PAYMENT_API_KEY = {
+      value = var.payment_api_key
+    }
+    PAYMENT_CHECKSUM_KEY = {
+      value = var.payment_checksum_key
+    }
+    FCM_PROJECT_ID = {
+      value = var.fcm_project_id
+    }
+    FCM_PRIVATE_KEY = {
+      value = var.fcm_private_key
+    }
+    FCM_CLIENT_EMAIL = {
+      value = var.fcm_client_email
     }
   }
 }

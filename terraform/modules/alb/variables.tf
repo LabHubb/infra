@@ -39,8 +39,8 @@ variable "services" {
     path_pattern          = string
     priority              = number
     health_check_path     = string
-    health_check_matcher  = optional(string, "200")   # HTTP status codes ALB accepts as healthy
-    health_check_interval = optional(number, 30)      # seconds between health checks
+    health_check_matcher  = optional(string, "200") # HTTP status codes ALB accepts as healthy
+    health_check_interval = optional(number, 30)    # seconds between health checks
     image                 = string
     public                = bool
   }))

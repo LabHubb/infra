@@ -118,7 +118,7 @@ module "secrets" {
   tags         = local.common_tags
 
   # All keys are stored as one JSON object in AWS Secrets Manager:
-  #   labhub-dev/app-secrets = { "DB_PASSWORD": "...", "REDIS_AUTH_TOKEN": "..." }
+  #   labhub-dev/app-secrets = { "DB_PASSWORD": "...", "REDIS_PASSWORD": "...", ... }
   # Add a new secret here + declare its variable below + set TF_VAR_xxx in shell.
   secrets = {
     DB_PASSWORD = {
@@ -130,6 +130,24 @@ module "secrets" {
     JWT_SECRET = {
       value = var.jwt_secret
     }
+    PAYMENT_CLIENT_ID = {
+      value = var.payment_client_id
+    }
+    PAYMENT_API_KEY = {
+      value = var.payment_api_key
+    }
+    PAYMENT_CHECKSUM_KEY = {
+      value = var.payment_checksum_key
+    }
+    FCM_PROJECT_ID = {
+      value = var.fcm_project_id
+    }
+    FCM_PRIVATE_KEY = {
+      value = var.fcm_private_key
+    }
+    FCM_CLIENT_EMAIL = {
+      value = var.fcm_client_email
+    }
   }
 }
 
@@ -137,7 +155,7 @@ module "secrets" {
 # Security Groups
 ################################################################################
 
-# ECS SG – allow traffic from nginx EC2 on any container port + inter-container
+# ECS SG – allow traffic from nginx (host network) + inter-container bridge
 module "sg_ecs" {
   count  = var.enable_ecs ? 1 : 0
   source = "../../modules/security-group"
@@ -287,7 +305,7 @@ module "ecs_services" {
   aws_region             = var.aws_region
   cluster_id             = module.ecs_cluster[0].cluster_id
   capacity_provider_name = module.ecs_cluster[0].capacity_provider_name
-  target_group_arn       = ""      # No ALB in dev
+  target_group_arn       = "" # No ALB in dev
   log_group_name         = var.enable_cloudwatch_logs ? module.log_groups[0].log_group_names[each.key] : "/aws/ecs/${var.project_name}/${var.environment}/${each.value.name}"
   service                = each.value
   tags                   = local.common_tags
@@ -325,7 +343,7 @@ module "redis" {
   private_subnet_ids         = var.private_subnet_ids
   redis_sg_id                = module.sg_redis[0].sg_id
   node_type                  = var.redis_node_type
-  transit_encryption_enabled = false   # dev: rely on VPC/SG network security
+  transit_encryption_enabled = false # dev: rely on VPC/SG network security
   tags                       = local.common_tags
 }
 

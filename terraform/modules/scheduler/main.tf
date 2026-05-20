@@ -2,7 +2,7 @@
 # Auto Stop/Start Scheduler
 #
 # Schedules:
- #   Start  → 01:00 UTC  (08:00 GMT+7)  Mon-Fri
+#   Start  → 01:00 UTC  (08:00 GMT+7)  Mon-Fri
 #   Stop   → 11:00 UTC  (18:00 GMT+7)  Mon-Fri
 #
 # Targets:
@@ -48,7 +48,7 @@ data "aws_iam_policy_document" "scheduler_policy" {
   # ASG
   statement {
     sid       = "ASGUpdate"
-    actions   = ["autoscaling:UpdateAutoScalingGroup"]
+    actions   = ["autoscaling:UpdateAutoScalingGroup", "autoscaling:SetInstanceProtection", "autoscaling:DescribeAutoScalingGroups"]
     resources = ["arn:aws:autoscaling:${var.aws_region}:${var.aws_account_id}:autoScalingGroup:*:autoScalingGroupName/${var.asg_name}"]
   }
 
@@ -164,10 +164,11 @@ resource "aws_scheduler_schedule" "asg_start" {
     role_arn = aws_iam_role.scheduler.arn
 
     input = jsonencode({
-      AutoScalingGroupName = var.asg_name
-      MinSize              = var.asg_min_size
-      MaxSize              = var.asg_max_size
-      DesiredCapacity      = var.asg_desired_capacity
+      AutoScalingGroupName             = var.asg_name
+      MinSize                          = var.asg_min_size
+      MaxSize                          = var.asg_max_size
+      DesiredCapacity                  = var.asg_desired_capacity
+      NewInstancesProtectedFromScaleIn = false
     })
   }
 }
@@ -193,10 +194,11 @@ resource "aws_scheduler_schedule" "asg_stop" {
     role_arn = aws_iam_role.scheduler.arn
 
     input = jsonencode({
-      AutoScalingGroupName = var.asg_name
-      MinSize              = 0
-      MaxSize              = var.asg_max_size
-      DesiredCapacity      = 0
+      AutoScalingGroupName             = var.asg_name
+      MinSize                          = 0
+      MaxSize                          = 0
+      DesiredCapacity                  = 0
+      NewInstancesProtectedFromScaleIn = false
     })
   }
 }

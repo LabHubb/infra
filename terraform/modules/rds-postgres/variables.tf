@@ -26,7 +26,7 @@ variable "instance_class" {
 
 variable "engine_version" {
   type        = string
-  default     = "16.6"
+  default     = "18.3"
   description = "PostgreSQL engine version"
 }
 

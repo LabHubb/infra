@@ -160,6 +160,42 @@ variable "redis_password" {
   description = "Redis password – stored in Secrets Manager"
 }
 
+variable "payment_client_id" {
+  type        = string
+  sensitive   = true
+  description = "Payment client ID – stored in Secrets Manager"
+}
+
+variable "payment_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Payment API key – stored in Secrets Manager"
+}
+
+variable "payment_checksum_key" {
+  type        = string
+  sensitive   = true
+  description = "Payment checksum key – stored in Secrets Manager"
+}
+
+variable "fcm_project_id" {
+  type        = string
+  sensitive   = true
+  description = "Firebase Cloud Messaging project ID – stored in Secrets Manager"
+}
+
+variable "fcm_private_key" {
+  type        = string
+  sensitive   = true
+  description = "Firebase Cloud Messaging private key – stored in Secrets Manager"
+}
+
+variable "fcm_client_email" {
+  type        = string
+  sensitive   = true
+  description = "Firebase Cloud Messaging client email – stored in Secrets Manager"
+}
+
 variable "log_retention_days" {
   type        = number
   default     = 90

@@ -31,11 +31,11 @@ variable "buckets" {
     abort_incomplete_multipart_days            = optional(number, 7)
 
     # -- CORS --
-    cors_allowed_origins  = optional(list(string), [])
-    cors_allowed_methods  = optional(list(string), ["GET", "PUT", "POST", "DELETE", "HEAD"])
-    cors_allowed_headers  = optional(list(string), ["*"])
-    cors_expose_headers   = optional(list(string), [])
-    cors_max_age_seconds  = optional(number, 3600)
+    cors_allowed_origins = optional(list(string), [])
+    cors_allowed_methods = optional(list(string), ["GET", "PUT", "POST", "DELETE", "HEAD"])
+    cors_allowed_headers = optional(list(string), ["*"])
+    cors_expose_headers  = optional(list(string), [])
+    cors_max_age_seconds = optional(number, 3600)
 
     # -- Static website --
     website_enabled    = optional(bool, false)

@@ -42,8 +42,8 @@ variable "log_group_name" {
 
 variable "service" {
   type = object({
-    name              = string
-    container_port    = number
+    name           = string
+    container_port = number
     # host_port is always set equal to container_port (fixed static mapping).
     # In dev:  nginx upstream → 127.0.0.1:<container_port>  (must be unique per service)
     # In prod: ALB target group uses container_port; hostPort=container_port is fine with awsvpc or bridge+ALB.

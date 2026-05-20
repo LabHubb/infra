@@ -196,7 +196,8 @@ terraform/
 │   ├── route53/                       # DNS records (ALB alias in prod, IP A-record in dev)
 │   ├── security-group/                # Generic SG (called once per logical group)
 │   ├── cloudwatch-log-group/          # CW log groups per service
-│   └── scheduler/                     # EventBridge Scheduler – auto stop/start (dev only)
+│   ├── scheduler/                     # EventBridge Scheduler – auto stop/start (dev only)
+│   └── k8s-app-stack/                 # Kubernetes app stack for Bizfly prod migration
 │
 ├── environments/
 │   ├── dev/                           # Dev: nginx on public EC2, no ALB
@@ -204,11 +205,17 @@ terraform/
 │   │   ├── variables.tf
 │   │   ├── terraform.tfvars
 │   │   └── backend.tf
-│   └── prod/                          # Prod: ALB, private ECS nodes
+│   ├── prod/                          # Prod: ALB, private ECS nodes
 │       ├── main.tf
 │       ├── variables.tf
 │       ├── terraform.tfvars
 │       └── backend.tf
+│   └── prod-bizfly/                   # Prod migration target: Bizfly Kubernetes
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── terraform.tfvars
+│       ├── backend.tf
+│       └── README.md
 │
 └── shared/
     ├── locals.tf                      # name_prefix + common_tags pattern (reference)
@@ -478,6 +485,22 @@ terraform init
 terraform plan -var-file=terraform.tfvars
 terraform apply -var-file=terraform.tfvars
 ```
+
+### Production on Bizfly Kubernetes (migration target)
+
+```bash
+cd terraform/environments/prod-bizfly
+
+terraform init
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```
+
+This stack deploys workloads to Kubernetes and keeps the same logical components:
+- backend + frontend services
+- shared app secret key/value map
+- Redis and Postgres (in-cluster Helm, or external managed endpoints)
+- ingress-based routing for public services
 
 > **💰 Savings Plan (prod cost reduction):** No Terraform changes needed. After your first prod apply, simply go to the AWS console and purchase a Compute Savings Plan — AWS automatically applies the discount to your existing On-Demand EC2 usage. See [Cost Strategy → Prod – Compute Savings Plan](#prod--compute-savings-plan) for the exact steps.
 

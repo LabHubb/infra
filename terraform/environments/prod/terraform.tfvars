@@ -62,14 +62,14 @@ services = {
     desired_count         = 2
     path_pattern          = "/api/*"
     priority              = 10
-    health_check_path     = "/api/v1/health"  # ALB health check endpoint
-    health_check_matcher  = "200"             # only HTTP 200 is considered healthy
+    health_check_path     = "/api/v1/health" # ALB health check endpoint
+    health_check_matcher  = "200"            # only HTTP 200 is considered healthy
     health_check_interval = 30               # seconds between checks
     image_tag             = "latest"
     public                = false
 
     environment_variables = [
-      { name = "DATABASE_SSLMODE",     value = "disable" }
+      { name = "DATABASE_SSLMODE", value = "disable" }
     ]
   }
 
@@ -81,14 +81,14 @@ services = {
     desired_count         = 2
     path_pattern          = "/admin/api/*"
     priority              = 10
-    health_check_path     = "/admin/api/v1/health"  # ALB health check endpoint
-    health_check_matcher  = "200"             # only HTTP 200 is considered healthy
-    health_check_interval = 30               # seconds between checks
+    health_check_path     = "/admin/api/v1/health" # ALB health check endpoint
+    health_check_matcher  = "200"                  # only HTTP 200 is considered healthy
+    health_check_interval = 30                     # seconds between checks
     image_tag             = "latest"
     public                = false
 
     environment_variables = [
-      { name = "DATABASE_SSLMODE",     value = "disable" }
+      { name = "DATABASE_SSLMODE", value = "disable" }
     ]
   }
 
@@ -104,7 +104,7 @@ services = {
     image_tag         = "latest"
     public            = true
     environment_variables = [
-      { name = "APP_ENV",  value = "production" },
+      { name = "APP_ENV", value = "production" },
       { name = "APP_PORT", value = "3000" },
     ]
   }
@@ -121,7 +121,7 @@ services = {
     image_tag         = "latest"
     public            = true
     environment_variables = [
-      { name = "APP_ENV",  value = "production" },
+      { name = "APP_ENV", value = "production" },
       { name = "APP_PORT", value = "3000" },
     ]
   }
@@ -195,6 +195,12 @@ db_username        = "myapp_admin"
 # ── Redis ─────────────────────────────────────────────────────────────────────
 redis_node_type = "cache.t4g.small"
 # redis_password → set via: export TF_VAR_redis_password="..."
+# payment_client_id    → set via: export TF_VAR_payment_client_id="..."
+# payment_api_key      → set via: export TF_VAR_payment_api_key="..."
+# payment_checksum_key → set via: export TF_VAR_payment_checksum_key="..."
+# fcm_project_id       → set via: export TF_VAR_fcm_project_id="..."
+# fcm_private_key      → set via: export TF_VAR_fcm_private_key="..."
+# fcm_client_email     → set via: export TF_VAR_fcm_client_email="..."
 
 # ── Observability ─────────────────────────────────────────────────────────────
 log_retention_days = 90
@@ -211,13 +217,13 @@ log_retention_days = 90
 #   enable_route53  ALB alias records only created when enable_alb = true
 #   enable_ecs_services uses enable_cloudwatch_logs + enable_secrets + enable_alb (all optional)
 
-enable_secrets         = false  # ← set false to destroy labhub-prod/app-secrets
+enable_secrets         = false # ← set false to destroy labhub-prod/app-secrets
 enable_ecs             = true
-enable_alb             = true   # requires enable_ecs = true for ECS SG ingress rule
+enable_alb             = true # requires enable_ecs = true for ECS SG ingress rule
 enable_redis           = true
 enable_postgres        = true
 enable_s3              = true
 enable_cloudwatch_logs = true
-enable_route53         = true   # ALB alias records only created when enable_alb = true
-enable_ecr             = false  # ← set false to destroy all ECR repositories
+enable_route53         = true  # ALB alias records only created when enable_alb = true
+enable_ecr             = false # ← set false to destroy all ECR repositories
 

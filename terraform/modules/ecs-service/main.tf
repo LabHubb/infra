@@ -138,9 +138,9 @@ resource "aws_iam_role_policy" "task_custom" {
 data "aws_iam_policy_document" "s3_access" {
   count = length(var.s3_bucket_arns) > 0 ? 1 : 0
   statement {
-    sid     = "S3ListBuckets"
-    effect  = "Allow"
-    actions = ["s3:ListBucket", "s3:GetBucketLocation"]
+    sid       = "S3ListBuckets"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
     resources = var.s3_bucket_arns
   }
   statement {
@@ -165,8 +165,8 @@ resource "aws_iam_role_policy" "s3_access" {
 data "aws_iam_policy_document" "task_secrets_access" {
   count = length(var.secrets_manager_secret_names) > 0 ? 1 : 0
   statement {
-    sid    = "SecretsManagerRead"
-    effect = "Allow"
+    sid     = "SecretsManagerRead"
+    effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
     resources = [
       for name in var.secrets_manager_secret_names :
@@ -185,9 +185,9 @@ resource "aws_iam_role_policy" "task_secrets_access" {
 # CloudWatch Logs
 data "aws_iam_policy_document" "cloudwatch_logs" {
   statement {
-    sid    = "CloudWatchLogs"
-    effect = "Allow"
-    actions = ["logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogStreams"]
+    sid       = "CloudWatchLogs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogStreams"]
     resources = ["arn:aws:logs:*:*:log-group:${var.log_group_name}:*"]
   }
 }

@@ -98,23 +98,23 @@ resource "aws_iam_role_policy_attachment" "exec" {
 
 resource "aws_ecs_task_definition" "nginx" {
   family                   = "${var.project_name}-nginx-${var.environment}"
-  network_mode             = "host"   # binds directly to EC2 host ports 80/443
+  network_mode             = "host" # binds directly to EC2 host ports 80/443
   requires_compatibilities = ["EC2"]
   execution_role_arn       = aws_iam_role.exec.arn
 
   container_definitions = jsonencode([{
-    name              = "nginx"
-    image             = "nginx:alpine"
-    essential         = true
-    cpu               = 128
-    memory            = 256
+    name      = "nginx"
+    image     = "nginx:alpine"
+    essential = true
+    cpu       = 128
+    memory    = 256
 
     # host network mode – no portMappings needed, nginx binds to host port 80
     portMappings = []
 
     # Write nginx config via entrypoint
     entryPoint = ["/bin/sh", "-c"]
-    command    = [
+    command = [
       "echo \"$NGINX_CONF\" > /etc/nginx/nginx.conf && nginx -t && exec nginx -g 'daemon off;'"
     ]
 

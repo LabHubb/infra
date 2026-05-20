@@ -82,7 +82,7 @@ variable "nginx_ec2_public_ips" {
 variable "services" {
   type = map(object({
     name                  = string
-    container_port        = number  # used as both containerPort and hostPort; must be unique per service in dev
+    container_port        = number # used as both containerPort and hostPort; must be unique per service in dev
     cpu                   = number
     memory                = number
     desired_count         = number
@@ -168,6 +168,42 @@ variable "jwt_secret" {
   type        = string
   sensitive   = true
   description = "JWT SECRET – stored in Secrets Manager"
+}
+
+variable "payment_client_id" {
+  type        = string
+  sensitive   = true
+  description = "Payment client ID – stored in Secrets Manager"
+}
+
+variable "payment_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Payment API key – stored in Secrets Manager"
+}
+
+variable "payment_checksum_key" {
+  type        = string
+  sensitive   = true
+  description = "Payment checksum key – stored in Secrets Manager"
+}
+
+variable "fcm_project_id" {
+  type        = string
+  sensitive   = true
+  description = "Firebase Cloud Messaging project ID – stored in Secrets Manager"
+}
+
+variable "fcm_private_key" {
+  type        = string
+  sensitive   = true
+  description = "Firebase Cloud Messaging private key – stored in Secrets Manager"
+}
+
+variable "fcm_client_email" {
+  type        = string
+  sensitive   = true
+  description = "Firebase Cloud Messaging client email – stored in Secrets Manager"
 }
 
 variable "log_retention_days" {
