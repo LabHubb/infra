@@ -69,10 +69,18 @@ resource "aws_launch_template" "this" {
   # Setting spot in the launch template AND mixed_instances_policy causes:
   # "Incompatible launch template" error from AWS Auto Scaling.
 
+  # Amazon Linux 2023 ECS-optimized AMI user_data notes:
+  # - AL2023 uses dnf (not yum); the ecs-init package is pre-installed on the ECS-optimized AMI.
+  # - /etc/ecs/ecs.config is the same config file path as AL2.
+  # - ECS_ENABLE_SPOT_INSTANCE_DRAINING=true gracefully drains tasks before a Spot interruption.
   user_data = base64encode(<<-EOF
     #!/bin/bash
-    echo ECS_CLUSTER=${aws_ecs_cluster.this.name} >> /etc/ecs/ecs.config
-    echo ECS_ENABLE_CONTAINER_METADATA=true >> /etc/ecs/ecs.config
+    cat <<'ECSCONFIG' >> /etc/ecs/ecs.config
+    ECS_CLUSTER=${aws_ecs_cluster.this.name}
+    ECS_ENABLE_CONTAINER_METADATA=true
+    ECS_ENABLE_SPOT_INSTANCE_DRAINING=true
+    ECS_LOGLEVEL=warn
+    ECSCONFIG
   EOF
   )
 

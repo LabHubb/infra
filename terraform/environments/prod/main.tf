@@ -23,11 +23,13 @@ terraform {
 data "aws_caller_identity" "current" {}
 
 ################################################################################
-# Auto-fetch latest ECS-optimized Amazon Linux 2 AMI (used when ami_id is null)
+# Auto-fetch latest ECS-optimized Amazon Linux 2023 AMI (used when ami_id is null)
+# AL2 reaches end-of-support on Jun 30 2026; AL2023 is the official successor.
+# SSM path reference: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
 ################################################################################
 
 data "aws_ssm_parameter" "ecs_ami" {
-  name = "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+  name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id"
 }
 
 ################################################################################

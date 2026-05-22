@@ -12,7 +12,8 @@ public_subnet_ids = ["subnet-004654dc97acf9435"]
 private_subnet_ids = ["subnet-004654dc97acf9435", "subnet-06fd6a05ad6f7df9c"]
 
 # ── ECS / nginx EC2 nodes ─────────────────────────────────────────────────────
-# ami_id is auto-fetched from SSM Parameter Store (latest ECS-optimized Amazon Linux 2).
+# ami_id is auto-fetched from SSM Parameter Store (latest ECS-optimized Amazon Linux 2023).
+# AL2 reached end-of-support on Jun 30 2026 – AL2023 is the official successor.
 # Override only if you need a specific AMI: ami_id = "ami-xxxxxxxxxxxxxxxxx"
 instance_type        = "t3a.small" # 1 vCPU, 2GB RAM, AMD
 asg_min_size         = 1
