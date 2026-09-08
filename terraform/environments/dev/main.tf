@@ -302,6 +302,7 @@ module "nginx" {
       name           = v.name
       container_port = v.container_port
       path_pattern   = v.path_pattern
+      upstream_path  = v.upstream_path
     }
   ]
 }

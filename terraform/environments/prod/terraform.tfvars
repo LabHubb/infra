@@ -87,7 +87,10 @@ services = {
     # regardless of priority ordering, since ALB path_pattern rules don't overlap
     # here, but priority must still be distinct.
     priority              = 15
-    health_check_path     = "/admin/api/v1/health" # ALB health check endpoint
+    # Matches APP_BASE_PATH below: the container serves /api/v1, and the ALB probes
+    # the target's container port directly, so the /admin/api/* prefix (which only
+    # exists as a listener-rule path) must not appear here.
+    health_check_path     = "/api/v1/health" # ALB health check endpoint
     health_check_matcher  = "200"                  # only HTTP 200 is considered healthy
     health_check_interval = 30                     # seconds between checks
     image_tag             = "latest"
@@ -95,11 +98,13 @@ services = {
 
     environment_variables = [
       { name = "DATABASE_SSLMODE", value = "disable" },
-      # be-admin's own default port/base path are 8081/"/api/v1" (see
-      # be-admin/internal/config); both must be overridden here to match
-      # container_port above and the ALB path_pattern/health_check_path.
+      # APP_PORT overrides be-admin's own default of 8081 to match container_port.
+      # APP_BASE_PATH stays at the app's default: be-admin serves /api/v1.
+      # The ALB forwards /admin/api/* through unchanged (no path rewrite), so that
+      # prefix has to be stripped upstream for requests to reach these routes —
+      # handled outside this file.
       { name = "APP_PORT", value = "8080" },
-      { name = "APP_BASE_PATH", value = "/admin/api/v1" },
+      { name = "APP_BASE_PATH", value = "/api/v1" },
     ]
   }
 

@@ -39,6 +39,15 @@ variable "services" {
     name           = string
     container_port = number
     path_pattern   = string
+    # upstream_path rewrites the request path before proxying. Set it when the
+    # container serves a different prefix than the public one it is routed on.
+    #
+    # Example: be-admin is reachable at /admin/api/* but serves /api/v1 internally
+    # (its own APP_BASE_PATH), because be-app already occupies /api on this host.
+    # upstream_path = "/api" turns /admin/api/v1/labs into /api/v1/labs.
+    #
+    # Leave null to pass the original path through untouched (be-app's case).
+    upstream_path = optional(string)
   }))
   description = "List of services nginx will proxy to via 127.0.0.1:<container_port>. Each service must use a unique container_port."
 }

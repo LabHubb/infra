@@ -203,7 +203,13 @@ services = {
     desired_count         = 1
     path_pattern          = "/admin/api/*"
     priority              = 15 # between be-app (10) and fe-admin (20)
-    health_check_path     = "/admin/api/v1/health"
+    # nginx rewrites the public /admin/api/* down to /api/* before proxying, since
+    # be-app already owns /api on this host and both services expose /auth/login.
+    #   GET /admin/api/v1/labs  ->  127.0.0.1:8081/api/v1/labs
+    upstream_path         = "/api"
+    # Probes hit the container port directly, bypassing nginx, so this must be the
+    # path the app itself serves (APP_BASE_PATH below), not the public prefix.
+    health_check_path     = "/api/v1/health"
     health_check_matcher  = "200"
     health_check_interval = 30
     image_tag             = "latest"
@@ -212,12 +218,11 @@ services = {
     environment_variables = [
       { name = "APP_NAME", value = "LabHub Admin API" },
       { name = "APP_ENV", value = "development" },
-      # be-admin's own defaults are port 8081 / base path "/api/v1" (see
-      # be-admin/internal/config) — APP_PORT below matches container_port; the
-      # base path is overridden so routes+health check land under /admin/api/v1
-      # behind nginx, matching path_pattern/health_check_path above.
+      # APP_PORT must match container_port above.
+      # APP_BASE_PATH stays at the app's own default: be-admin serves /api/v1, and
+      # nginx strips the public /admin prefix on the way in (see upstream_path).
       { name = "APP_PORT", value = "8081" },
-      { name = "APP_BASE_PATH", value = "/admin/api/v1" },
+      { name = "APP_BASE_PATH", value = "/api/v1" },
       { name = "APP_DEBUG", value = "true" },
       { name = "APP_TIMEZONE", value = "Asia/Ho_Chi_Minh" },
 

@@ -105,6 +105,11 @@ variable "services" {
     health_check_interval = optional(number, 30)
     image_tag             = string
     public                = bool
+    # Rewrite the public path_pattern down to this prefix before proxying, for
+    # services whose container serves a different prefix. Used by be-admin, which
+    # is exposed on /admin/api/* but serves /api/v1 (be-app already owns /api).
+    # Null = pass the path through unchanged.
+    upstream_path = optional(string)
     environment_variables = optional(list(object({
       name  = string
       value = string

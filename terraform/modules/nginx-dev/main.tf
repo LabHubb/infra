@@ -17,16 +17,40 @@
 #
 # Rule: each service must use a unique container_port in terraform.tfvars.
 #   be-app      container_port = 8080
+#   be-admin    container_port = 8081
 #   fe-admin    container_port = 3001
 #   fe-customer container_port = 3002
+#
+# Path rewriting (services[*].upstream_path):
+#   be-app and be-admin both serve /api/v1 internally and both expose an
+#   /api/v1/auth/login, so they cannot share the /api prefix on this host.
+#   be-admin is therefore routed on /admin/api/* publicly and nginx rewrites it
+#   down to /api/* before proxying:
+#     GET /admin/api/v1/labs  →  127.0.0.1:8081/api/v1/labs
+#   be-app has no upstream_path, so its paths pass through unchanged.
 ################################
 
 locals {
+  # nginx strips the matched location prefix only when proxy_pass carries a URI
+  # path, and that requires the location itself to end in "/". So a rewriting
+  # service gets "location /admin/api/" + "proxy_pass .../api/", while a
+  # pass-through service keeps the bare prefix and a URI-less proxy_pass.
   nginx_location_blocks = join("\n", [
     for svc in var.services :
+    svc.upstream_path == null ?
     <<-BLOCK
     location ${svc.path_pattern == "/*" ? "/" : trimsuffix(svc.path_pattern, "/*")} {
       proxy_pass         http://127.0.0.1:${svc.container_port};
+      proxy_set_header   Host            $host;
+      proxy_set_header   X-Real-IP       $remote_addr;
+      proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_read_timeout 60s;
+    }
+    BLOCK
+    :
+    <<-BLOCK
+    location ${trimsuffix(trimsuffix(svc.path_pattern, "/*"), "/")}/ {
+      proxy_pass         http://127.0.0.1:${svc.container_port}${trimsuffix(svc.upstream_path, "/")}/;
       proxy_set_header   Host            $host;
       proxy_set_header   X-Real-IP       $remote_addr;
       proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;

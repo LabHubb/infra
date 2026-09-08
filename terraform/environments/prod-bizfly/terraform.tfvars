@@ -59,15 +59,19 @@ services = {
     container_port    = 8080
     replicas          = 2
     path_pattern      = "/admin/api"
-    health_check_path = "/admin/api/v1/health"
+    # Matches APP_BASE_PATH below: the readiness/liveness probes hit the pod's
+    # container port directly, so the /admin/api Ingress prefix must not appear here.
+    health_check_path = "/api/v1/health"
     public            = true
     env = {
       DATABASE_SSLMODE = "disable"
-      # be-admin's own defaults are port 8081 / base path "/api/v1" (see
-      # be-admin/internal/config) — both must be overridden to match
-      # container_port and health_check_path above.
+      # APP_PORT overrides be-admin's own default of 8081 to match container_port.
+      # APP_BASE_PATH stays at the app's default: be-admin serves /api/v1.
+      # The Ingress forwards /admin/api through unchanged (no rewrite annotation),
+      # so that prefix has to be stripped upstream for requests to reach these
+      # routes — handled outside this file.
       APP_PORT      = "8080"
-      APP_BASE_PATH = "/admin/api/v1"
+      APP_BASE_PATH = "/api/v1"
     }
   }
 
