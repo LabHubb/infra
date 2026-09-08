@@ -80,7 +80,13 @@ services = {
     memory                = 512
     desired_count         = 2
     path_pattern          = "/admin/api/*"
-    priority              = 10
+    # Was 10, same as be-app — aws_lb_listener_rule.priority must be unique per
+    # listener, so `terraform apply` would fail with "duplicate priority" the
+    # first time both services were created together. 15 sits between be-app (10)
+    # and fe-admin (20); /admin/api/* still matches before fe-admin's /admin/*
+    # regardless of priority ordering, since ALB path_pattern rules don't overlap
+    # here, but priority must still be distinct.
+    priority              = 15
     health_check_path     = "/admin/api/v1/health" # ALB health check endpoint
     health_check_matcher  = "200"                  # only HTTP 200 is considered healthy
     health_check_interval = 30                     # seconds between checks
@@ -88,7 +94,12 @@ services = {
     public                = false
 
     environment_variables = [
-      { name = "DATABASE_SSLMODE", value = "disable" }
+      { name = "DATABASE_SSLMODE", value = "disable" },
+      # be-admin's own default port/base path are 8081/"/api/v1" (see
+      # be-admin/internal/config); both must be overridden here to match
+      # container_port above and the ALB path_pattern/health_check_path.
+      { name = "APP_PORT", value = "8080" },
+      { name = "APP_BASE_PATH", value = "/admin/api/v1" },
     ]
   }
 

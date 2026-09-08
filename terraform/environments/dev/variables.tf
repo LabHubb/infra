@@ -30,7 +30,7 @@ variable "public_subnet_ids" {
 
 variable "private_subnet_ids" {
   type        = list(string)
-  description = "Private subnet IDs – RDS, ElastiCache"
+  description = "Private subnet IDs – RDS (ElastiCache no longer used in dev)"
 }
 
 variable "ami_id" {
@@ -64,6 +64,18 @@ variable "spot_max_price" {
   type        = string
   default     = ""
   description = "Max Spot price per hour for ECS EC2 nodes. Empty string = on-demand price cap (recommended)."
+}
+
+variable "spot_instance_types" {
+  type        = list(string)
+  default     = []
+  description = "Extra instance types for Spot capacity. Must be the same architecture as ami_id (x86_64)."
+}
+
+variable "on_demand_base_capacity" {
+  type        = number
+  default     = 0
+  description = "On-Demand instances guaranteed before Spot. 0 = fully Spot; set to 1 to guarantee the node always launches."
 }
 
 
@@ -222,10 +234,16 @@ variable "redis_node_type" {
   default = "cache.t4g.micro"
 }
 
+variable "redis_host_override" {
+  type        = string
+  default     = null
+  description = "Redis host to inject as REDIS_HOST when enable_redis = false (ElastiCache disabled). Set to '172.17.0.1' when running Redis as an ECS container on the same EC2 host (Docker bridge gateway)."
+}
+
 variable "enable_scheduler" {
   type        = bool
   default     = true
-  description = "Enable auto stop/start scheduler for ECS, RDS and ElastiCache (dev cost saving). Requires enable_ecs, enable_postgres and enable_redis = true."
+  description = "Enable auto stop/start scheduler for ECS, RDS and ElastiCache (dev cost saving). Requires enable_ecs and enable_postgres = true. When Redis runs as an ECS container, it is stopped automatically with the ECS services."
 }
 
 ################################################################################
@@ -233,11 +251,17 @@ variable "enable_scheduler" {
 # Set any flag to false to skip provisioning that module entirely.
 #
 # Dependency graph:
-#   enable_nginx     → requires enable_ecs  (nginx ASG uses ECS cluster + SG)
-#   enable_redis     → requires enable_ecs  to set SG ingress rule (optional)
-#   enable_postgres  → requires enable_ecs  to set SG ingress rule (optional)
-#   enable_scheduler → requires enable_ecs + enable_postgres + enable_redis
-#   enable_ecs_services uses: enable_cloudwatch_logs, enable_secrets (all optional)
+#   enable_nginx          → requires enable_ecs
+#   enable_redis          → requires enable_ecs (ElastiCache SG ingress from ECS SG)
+#   enable_redis_container→ requires enable_ecs (runs inside the existing ECS cluster)
+#   enable_postgres       → requires enable_ecs (SG ingress from ECS SG)
+#   enable_scheduler      → requires enable_ecs + enable_postgres
+#                           (Redis container stops/starts automatically with ECS)
+#   enable_ecs_services uses: enable_cloudwatch_logs, enable_secrets (optional)
+#
+# Dev default: enable_redis = false, enable_redis_container = true
+#   Redis runs as redis:7-alpine ECS service. REDIS_HOST is auto-injected as
+#   172.17.0.1 (Docker bridge gateway) into all app containers.
 ################################################################################
 
 variable "enable_secrets" {
@@ -260,8 +284,14 @@ variable "enable_nginx" {
 
 variable "enable_redis" {
   type        = bool
+  default     = false
+  description = "Enable AWS ElastiCache Redis and its security group. Set to false (default in dev) to use Redis as an ECS container instead. When enable_ecs = true, the SG ingress rule is scoped to the ECS SG."
+}
+
+variable "enable_redis_container" {
+  type        = bool
   default     = true
-  description = "Enable ElastiCache Redis and its security group. When enable_ecs = true, the SG ingress rule is scoped to the ECS SG."
+  description = "Deploy Redis as an ECS container (redis:7-alpine) inside the existing ECS cluster. Mutually exclusive with enable_redis (ElastiCache). When true, REDIS_HOST is auto-injected as 172.17.0.1 (Docker bridge gateway). Requires enable_ecs = true."
 }
 
 variable "enable_postgres" {

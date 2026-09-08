@@ -1,3 +1,9 @@
+locals {
+  # An empty overrides list makes the ASG fall back to the launch template's
+  # instance_type, so only emit overrides when extra types are configured.
+  spot_override_types = length(var.spot_instance_types) > 0 ? distinct(concat([var.instance_type], var.spot_instance_types)) : []
+}
+
 ################################
 # ECS Cluster (EC2 launch type)
 ################################
@@ -128,7 +134,7 @@ resource "aws_autoscaling_group" "this" {
     for_each = var.use_spot ? [1] : []
     content {
       instances_distribution {
-        on_demand_base_capacity                  = 0
+        on_demand_base_capacity                  = var.on_demand_base_capacity
         on_demand_percentage_above_base_capacity = 0
         spot_allocation_strategy                 = "capacity-optimized"
         # "" means AWS caps at on-demand price; explicit value sets a hard max bid
@@ -138,6 +144,13 @@ resource "aws_autoscaling_group" "this" {
         launch_template_specification {
           launch_template_id = aws_launch_template.this.id
           version            = "$Latest"
+        }
+
+        dynamic "override" {
+          for_each = local.spot_override_types
+          content {
+            instance_type = override.value
+          }
         }
       }
     }

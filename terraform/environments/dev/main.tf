@@ -64,9 +64,20 @@ locals {
       { name = "DATABASE_USER", value = var.db_username },
       { name = "DATABASE_DBNAME", value = var.db_name },
     ] : [],
+    # Redis: prefer ElastiCache when enable_redis = true, then fall back to the
+    # in-cluster Redis container (172.17.0.1 = Docker bridge gateway on the EC2 host).
     var.enable_redis ? [
       { name = "REDIS_HOST", value = module.redis[0].redis_endpoint },
       { name = "REDIS_PORT", value = tostring(module.redis[0].redis_port) },
+      { name = "REDIS_PASSWORD", value = var.redis_password },
+      ] : var.enable_redis_container ? [
+      { name = "REDIS_HOST", value = module.redis_container[0].redis_host },
+      { name = "REDIS_PORT", value = tostring(module.redis_container[0].redis_port) },
+      { name = "REDIS_PASSWORD", value = var.redis_password },
+      ] : var.redis_host_override != null ? [
+      { name = "REDIS_HOST", value = var.redis_host_override },
+      { name = "REDIS_PORT", value = "6379" },
+      { name = "REDIS_PASSWORD", value = var.redis_password },
     ] : [],
   )
 
@@ -262,6 +273,8 @@ module "ecs_cluster" {
   asg_desired_capacity        = var.asg_desired_capacity
   use_spot                    = true               # Spot instances in dev to save cost
   spot_max_price              = var.spot_max_price # "" = on-demand price cap
+  spot_instance_types         = var.spot_instance_types
+  on_demand_base_capacity     = var.on_demand_base_capacity
   tags                        = local.common_tags
 }
 
@@ -315,6 +328,12 @@ module "ecs_services" {
   # Task role – runtime access to AWS services
   s3_bucket_arns               = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
   secrets_manager_secret_names = var.enable_secrets ? [module.secrets[0].secret_name] : []
+
+  # Ensure Redis container service is registered in the cluster before any
+  # app service is deployed. ECS will still schedule tasks independently, but
+  # this guarantees the Redis task definition + service exist first so the
+  # Redis container has maximum lead time before be-app starts connecting.
+  depends_on = [module.redis_container]
 }
 
 ################################################################################
@@ -333,7 +352,7 @@ module "s3" {
 }
 
 ################################################################################
-# ElastiCache Redis
+# ElastiCache Redis (disabled in dev – use enable_redis_container instead)
 ################################################################################
 
 module "redis" {
@@ -347,6 +366,29 @@ module "redis" {
   node_type                  = var.redis_node_type
   transit_encryption_enabled = false # dev: rely on VPC/SG network security
   tags                       = local.common_tags
+}
+
+################################################################################
+# Redis ECS Container (dev default – replaces ElastiCache to save cost)
+# Runs redis:7-alpine as a standalone ECS service inside the existing cluster.
+# Other bridge-mode containers reach it via 172.17.0.1:6379 (docker0 gateway).
+# Auth: Redis starts with --requirepass using var.redis_password.
+# REDIS_HOST, REDIS_PORT and REDIS_PASSWORD are all auto-injected into app containers.
+################################################################################
+
+module "redis_container" {
+  count  = var.enable_redis_container && var.enable_ecs ? 1 : 0
+  source = "../../modules/redis-dev"
+
+  name_prefix            = local.name_prefix
+  project_name           = var.project_name
+  environment            = var.environment
+  aws_region             = var.aws_region
+  ecs_cluster_id         = module.ecs_cluster[0].cluster_id
+  capacity_provider_name = module.ecs_cluster[0].capacity_provider_name
+  redis_password         = var.redis_password
+  log_retention_days     = var.log_retention_days
+  tags                   = local.common_tags
 }
 
 ################################################################################
@@ -397,7 +439,7 @@ module "route53" {
 ################################################################################
 
 module "scheduler" {
-  count  = var.enable_scheduler && var.enable_ecs && var.enable_postgres && var.enable_redis ? 1 : 0
+  count  = var.enable_scheduler && var.enable_ecs && var.enable_postgres ? 1 : 0
   source = "../../modules/scheduler"
 
   name_prefix    = local.name_prefix
@@ -405,14 +447,23 @@ module "scheduler" {
   aws_account_id = data.aws_caller_identity.current.account_id
   tags           = local.common_tags
 
-  # ECS
+  # ECS – includes the Redis container service when enabled so it stops/starts
+  # automatically with the rest of the cluster.
   ecs_cluster_name = module.ecs_cluster[0].cluster_name
-  ecs_services = {
-    for k, v in local.services_with_image : k => {
-      service_name  = module.ecs_services[k].service_name
-      desired_count = v.desired_count
-    }
-  }
+  ecs_services = merge(
+    {
+      for k, v in local.services_with_image : k => {
+        service_name  = module.ecs_services[k].service_name
+        desired_count = v.desired_count
+      }
+    },
+    var.enable_redis_container ? {
+      redis = {
+        service_name  = module.redis_container[0].service_name
+        desired_count = 1
+      }
+    } : {}
+  )
 
   # ASG
   asg_name             = module.ecs_cluster[0].autoscaling_group_name
@@ -423,8 +474,8 @@ module "scheduler" {
   # RDS
   rds_identifier = module.postgres[0].db_identifier
 
-  # ElastiCache
-  redis_replication_group_id = module.redis[0].redis_replication_group_id
+  # Note: ElastiCache Redis is not used in dev – Redis runs as an ECS container
+  # and is automatically stopped/started with the ECS services + ASG.
 }
 
 ################################################################################
@@ -438,8 +489,12 @@ output "ecs_cluster_name" {
 }
 
 output "redis_endpoint" {
-  description = "Redis primary endpoint"
-  value       = var.enable_redis ? module.redis[0].redis_endpoint : null
+  description = "Redis endpoint: ElastiCache address when enable_redis=true, Docker bridge gateway when enable_redis_container=true, or redis_host_override fallback."
+  value = (
+    var.enable_redis ? module.redis[0].redis_endpoint :
+    var.enable_redis_container ? "${module.redis_container[0].redis_host}:${module.redis_container[0].redis_port}" :
+    var.redis_host_override
+  )
 }
 
 output "postgres_endpoint" {

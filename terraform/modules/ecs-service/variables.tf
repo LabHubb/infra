@@ -44,17 +44,14 @@ variable "service" {
   type = object({
     name           = string
     container_port = number
-    # host_port is always set equal to container_port (fixed static mapping).
-    # In dev:  nginx upstream → 127.0.0.1:<container_port>  (must be unique per service)
-    # In prod: ALB target group uses container_port; hostPort=container_port is fine with awsvpc or bridge+ALB.
-    cpu               = number
-    memory            = number
-    desired_count     = number
-    path_pattern      = string
-    priority          = number
+    cpu            = number
+    memory         = number
+    desired_count  = number
+    path_pattern   = string
+    priority       = number
     health_check_path = string
-    image             = string
-    public            = bool
+    image          = string
+    public         = bool
     environment_variables = optional(list(object({
       name  = string
       value = string
@@ -77,6 +74,7 @@ variable "health_check_grace_period_seconds" {
   default     = 60
   description = "Seconds ECS waits before starting ALB health checks on a new task. Set high enough for your app startup time."
 }
+
 
 variable "task_policy_json" {
   type        = string

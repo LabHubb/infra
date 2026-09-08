@@ -67,8 +67,11 @@ variable "rds_identifier" {
 }
 
 # ── ElastiCache ───────────────────────────────────────────────────────────────
+# NOTE: ElastiCache is not used in dev (Redis runs as an ECS container).
+# This variable is kept for backwards compatibility but is not used by this module.
 
 variable "redis_replication_group_id" {
   type        = string
-  description = "ElastiCache replication group ID"
+  default     = ""
+  description = "ElastiCache replication group ID (unused – kept for backwards compatibility)"
 }

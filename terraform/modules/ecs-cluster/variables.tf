@@ -66,3 +66,19 @@ variable "spot_max_price" {
   description = "Maximum Spot price per hour (e.g. '0.05'). Empty string means the on-demand price cap."
 }
 
+# A single instance type in one AZ is one Spot pool. When that pool runs dry AWS
+# returns UnfulfillableCapacity and the ASG cannot launch at all. Listing extra
+# types widens the pool count so AWS has alternatives to choose from.
+# All types must match the AMI architecture (x86_64 vs ARM).
+variable "spot_instance_types" {
+  type        = list(string)
+  default     = []
+  description = "Extra instance types for the Spot mixed-instances overrides. Empty list uses only var.instance_type."
+}
+
+variable "on_demand_base_capacity" {
+  type        = number
+  default     = 0
+  description = "Number of instances fulfilled with On-Demand before Spot is used. 0 = fully Spot."
+}
+

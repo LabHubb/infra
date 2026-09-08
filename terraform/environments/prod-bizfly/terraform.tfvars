@@ -63,6 +63,11 @@ services = {
     public            = true
     env = {
       DATABASE_SSLMODE = "disable"
+      # be-admin's own defaults are port 8081 / base path "/api/v1" (see
+      # be-admin/internal/config) — both must be overridden to match
+      # container_port and health_check_path above.
+      APP_PORT      = "8080"
+      APP_BASE_PATH = "/admin/api/v1"
     }
   }
 
