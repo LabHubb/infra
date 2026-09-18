@@ -330,3 +330,13 @@ variable "enable_ecr" {
   description = "Enable ECR repository creation. One repo is automatically created per service name in var.services. Set to false if repos already exist."
 }
 
+
+variable "postgres_client_version" {
+  type        = number
+  default     = 18
+  description = <<-DESC
+    Major version of the PostgreSQL client (psql, pg_dump, pg_restore) installed
+    on the ECS nodes. Must be >= the RDS engine major version, because pg_dump
+    refuses to dump from a server newer than itself.
+  DESC
+}

@@ -82,3 +82,22 @@ variable "on_demand_base_capacity" {
   description = "Number of instances fulfilled with On-Demand before Spot is used. 0 = fully Spot."
 }
 
+
+variable "postgres_client_version" {
+  type        = number
+  default     = 18
+  description = <<-DESC
+    Major version of the PostgreSQL client (psql, pg_dump, pg_restore) installed
+    on each ECS node from the PGDG repo. Keep this >= the RDS engine major
+    version: pg_dump refuses to dump from a server newer than itself.
+  DESC
+}
+
+variable "install_postgres_client" {
+  type        = bool
+  default     = true
+  description = <<-DESC
+    Install the PostgreSQL client on boot. Set to false if the pinned ami_id
+    already bakes in the desired client version and you want a faster boot.
+  DESC
+}

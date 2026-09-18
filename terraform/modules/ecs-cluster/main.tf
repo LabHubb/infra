@@ -2,6 +2,46 @@ locals {
   # An empty overrides list makes the ASG fall back to the launch template's
   # instance_type, so only emit overrides when extra types are configured.
   spot_override_types = length(var.spot_instance_types) > 0 ? distinct(concat([var.instance_type], var.spot_instance_types)) : []
+
+  # PostgreSQL client (psql / pg_dump / pg_restore) bootstrap.
+  #
+  # Kept in a local rather than inline in the user_data heredoc on purpose: a
+  # %{if} directive inside a <<-EOF heredoc emits a column-0 line, which drags
+  # the heredoc's common-indent prefix to zero and leaves "#!/bin/bash" itself
+  # indented. cloud-init only honours a shebang in column 1, so that silently
+  # disables the ENTIRE user_data and nodes never join the cluster.
+  #
+  # AL2023's own repo tops out at postgresql16, so the client comes from PGDG.
+  # AL2023 is RHEL9-based, hence the EL-9 repo path.
+  # This runs AFTER the ECS config is written, so a PGDG outage delays the
+  # client but never stops the node from registering with the cluster.
+  #
+  # The versioned RPM installs to /usr/pgsql-<major>/bin, which is not on PATH,
+  # so symlinks into /usr/local/bin expose psql/pg_dump to SSM shells. Older
+  # clients are removed first so an unversioned /usr/bin/psql baked into a
+  # custom AMI cannot shadow the new one.
+  pg_client_install = var.install_postgres_client ? join("\n", [
+    "set -x",
+    "exec >> /var/log/pg-client-install.log 2>&1",
+    "PG_MAJOR=${var.postgres_client_version}",
+    "case \"$(uname -m)\" in aarch64) PG_ARCH=aarch64 ;; *) PG_ARCH=x86_64 ;; esac",
+    "cat <<PGDGREPO > /etc/yum.repos.d/pgdg.repo",
+    "[pgdg$${PG_MAJOR}]",
+    "name=PostgreSQL $${PG_MAJOR} for RHEL 9 - $${PG_ARCH}",
+    "baseurl=https://download.postgresql.org/pub/repos/yum/$${PG_MAJOR}/redhat/rhel-9-$${PG_ARCH}",
+    "enabled=1",
+    "gpgcheck=1",
+    "gpgkey=https://download.postgresql.org/pub/repos/yum/keys/PGDG-RPM-GPG-KEY-RHEL",
+    "PGDGREPO",
+    "dnf -y remove postgresql postgresql15 postgresql16 postgresql17 || true",
+    "for attempt in 1 2 3; do dnf -y install postgresql$${PG_MAJOR} && break; sleep $((attempt * 15)); done",
+    "if [ -x /usr/pgsql-$${PG_MAJOR}/bin/psql ]; then",
+    "  for b in psql pg_dump pg_dumpall pg_restore; do ln -sf /usr/pgsql-$${PG_MAJOR}/bin/$${b} /usr/local/bin/$${b}; done",
+    "  /usr/local/bin/psql --version",
+    "else",
+    "  echo \"WARNING: postgresql$${PG_MAJOR} client install failed; node still joins ECS.\"",
+    "fi",
+  ]) : "true # postgres client install disabled"
 }
 
 ################################
@@ -79,15 +119,33 @@ resource "aws_launch_template" "this" {
   # - AL2023 uses dnf (not yum); the ecs-init package is pre-installed on the ECS-optimized AMI.
   # - /etc/ecs/ecs.config is the same config file path as AL2.
   # - ECS_ENABLE_SPOT_INSTANCE_DRAINING=true gracefully drains tasks before a Spot interruption.
-  user_data = base64encode(<<-EOF
-    #!/bin/bash
-    cat <<'ECSCONFIG' >> /etc/ecs/ecs.config
-    ECS_CLUSTER=${aws_ecs_cluster.this.name}
-    ECS_ENABLE_CONTAINER_METADATA=true
-    ECS_ENABLE_SPOT_INSTANCE_DRAINING=true
-    ECS_LOGLEVEL=warn
-    ECSCONFIG
-  EOF
+  #
+  # PostgreSQL client (psql / pg_dump / pg_restore):
+  #   AL2023's own repo only ships postgresql15/16, so the client comes from the
+  #   PGDG repo instead. AL2023 is RHEL9-based, hence the EL-9 repo path.
+  #   ECS config is written FIRST and the install runs last, so a PGDG outage
+  #   delays the client but never stops the node from joining the cluster.
+  #
+  #   The versioned RPMs install to /usr/pgsql-<major>/bin, which is not on PATH,
+  #   so symlinks into /usr/local/bin expose psql/pg_dump to SSM shells.
+  #   Older clients are removed first so an unversioned /usr/bin/psql from a
+  #   baked AMI cannot shadow the new one.
+  # NOTE: plain <<EOF, not <<-EOF. An indented heredoc dedents by the smallest
+  # indent it finds, and a multi-line interpolation like pg_client_install
+  # injects column-0 lines that break that calculation, leaving "#!/bin/bash"
+  # indented. cloud-init only honours a shebang in column 1, so that would
+  # silently disable ALL of user_data and the node would never join ECS.
+  # Writing the script flush-left keeps it byte-exact.
+  user_data = base64encode(<<EOF
+#!/bin/bash
+cat <<'ECSCONFIG' >> /etc/ecs/ecs.config
+ECS_CLUSTER=${aws_ecs_cluster.this.name}
+ECS_ENABLE_CONTAINER_METADATA=true
+ECS_ENABLE_SPOT_INSTANCE_DRAINING=true
+ECS_LOGLEVEL=warn
+ECSCONFIG
+${local.pg_client_install}
+EOF
   )
 
   metadata_options {

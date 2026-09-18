@@ -271,6 +271,7 @@ module "ecs_cluster" {
   asg_min_size                = var.asg_min_size
   asg_max_size                = var.asg_max_size
   asg_desired_capacity        = var.asg_desired_capacity
+  postgres_client_version     = var.postgres_client_version
   use_spot                    = true               # Spot instances in dev to save cost
   spot_max_price              = var.spot_max_price # "" = on-demand price cap
   spot_instance_types         = var.spot_instance_types

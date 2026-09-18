@@ -26,17 +26,25 @@ private_subnet_ids = ["subnet-004654dc97acf9435", "subnet-06fd6a05ad6f7df9c"]
 #   1. Find base:  aws ssm get-parameter --name /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id --region ap-southeast-1 --query Parameter.Value --output text
 #   2. Launch EC2: aws ec2 run-instances --image-id <BASE_AMI> --instance-type t3a.small --region ap-southeast-1 ...
 #   3. SSM in:     aws ssm start-session --target <INSTANCE_ID> --region ap-southeast-1
-#   4. Install:    sudo dnf update -y && sudo dnf install -y htop git curl jq postgresql16
+#   4. Install:    sudo dnf update -y && sudo dnf install -y htop git curl jq
+#      (psql/pg_dump are NOT baked any more - the ecs-cluster module installs
+#      postgresql<postgres_client_version> from the PGDG repo on every boot, so
+#      the client version is bumped in Terraform rather than by re-baking.)
 #   5. Bake:       aws ec2 create-image --instance-id <INSTANCE_ID> --name "labhub-ecs-al2023-$(date +%Y%m%d)" --no-reboot --region ap-southeast-1
 #   6. Terminate:  aws ec2 terminate-instances --instance-ids <INSTANCE_ID>
 #   7. Paste the new AMI ID below and run terraform apply.
 #
 # Set to null to auto-fetch latest ECS-optimized AL2023 from SSM (no pre-installs).
-ami_id               = "ami-0518e487803f0c4ce" # baked 20260529-v2 - htop git jq psql16 redis-cli(6.2.20) cloudwatch-agent
-instance_type        = "t3a.small"             # 1 vCPU, 2GB RAM, AMD
-asg_min_size         = 1
-asg_max_size         = 1
-asg_desired_capacity = 1
+ami_id                  = "ami-0518e487803f0c4ce" # baked 20260529-v2 - htop git jq redis-cli(6.2.20) cloudwatch-agent
+# The psql16 baked into the AMI above is removed and replaced by the PGDG
+# postgresql18 client at boot (ecs-cluster module user_data). pg_dump must be
+# >= the RDS engine major version (currently 18.3) or dumps fail with
+# "server version mismatch", which is why this is pinned in code.
+postgres_client_version = 18
+instance_type           = "t3a.small" # 1 vCPU, 2GB RAM, AMD
+asg_min_size            = 1
+asg_max_size            = 1
+asg_desired_capacity    = 1
 
 # Spot instances – saves ~70% vs on-demand in dev.
 # spot_max_price = ""  means AWS caps the price at the current on-demand rate,
