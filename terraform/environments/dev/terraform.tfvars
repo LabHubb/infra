@@ -35,7 +35,7 @@ private_subnet_ids = ["subnet-004654dc97acf9435", "subnet-06fd6a05ad6f7df9c"]
 #   7. Paste the new AMI ID below and run terraform apply.
 #
 # Set to null to auto-fetch latest ECS-optimized AL2023 from SSM (no pre-installs).
-ami_id                  = "ami-0518e487803f0c4ce" # baked 20260529-v2 - htop git jq redis-cli(6.2.20) cloudwatch-agent
+ami_id = "ami-0518e487803f0c4ce" # baked 20260529-v2 - htop git jq redis-cli(6.2.20) cloudwatch-agent
 # The psql16 baked into the AMI above is removed and replaced by the PGDG
 # postgresql18 client at boot (ecs-cluster module user_data). pg_dump must be
 # >= the RDS engine major version (currently 18.3) or dumps fail with
@@ -202,19 +202,19 @@ services = {
   }
 
   be-admin = {
-    name                  = "be-admin"
+    name = "be-admin"
     # Must differ from be-app's 8080 – dev runs a single EC2 node, so bridge-mode
     # hostPort collisions across services on the same instance would fail to start.
-    container_port        = 8081
-    cpu                   = 256
-    memory                = 512
-    desired_count         = 1
-    path_pattern          = "/admin/api/*"
-    priority              = 15 # between be-app (10) and fe-admin (20)
+    container_port = 8081
+    cpu            = 256
+    memory         = 512
+    desired_count  = 1
+    path_pattern   = "/admin/api/*"
+    priority       = 15 # between be-app (10) and fe-admin (20)
     # nginx rewrites the public /admin/api/* down to /api/* before proxying, since
     # be-app already owns /api on this host and both services expose /auth/login.
     #   GET /admin/api/v1/labs  ->  127.0.0.1:8081/api/v1/labs
-    upstream_path         = "/api"
+    upstream_path = "/api"
     # Probes hit the container port directly, bypassing nginx, so this must be the
     # path the app itself serves (APP_BASE_PATH below), not the public prefix.
     health_check_path     = "/api/v1/health"
@@ -394,6 +394,7 @@ db_username        = "labhub"
 # fcm_project_id       → set via: export TF_VAR_fcm_project_id="..."
 # fcm_private_key      → set via: export TF_VAR_fcm_private_key="..."
 # fcm_client_email     → set via: export TF_VAR_fcm_client_email="..."
+# rsa_private_key      → set via: export TF_VAR_rsa_private_key="..."
 
 # ── Observability ─────────────────────────────────────────────────────────────
 log_retention_days = 14
@@ -403,6 +404,12 @@ log_retention_days = 14
 # (11:00 UTC) and started again at 08:00 GMT+7 (01:00 UTC), Mon–Fri only.
 # Redis-as-container stops/starts automatically with the ECS ASG.
 # Controlled via enable_scheduler in the module flags block below.
+#
+# One-off override: keep the environment up until 23:59 GMT+7 tonight
+# (Fri 2026-09-18) instead of the usual 18:00. ECS + RDS stop at 23:59, the ASG
+# scales to 0 at 00:04. The recurring 18:00 stop skips today and resumes by
+# itself on Mon 2026-09-21. Set back to null after tonight.
+scheduler_one_off_stop_at = "2026-09-18T23:59:00+07:00"
 
 
 # ── Module enable/disable flags ───────────────────────────────────────────────

@@ -196,6 +196,12 @@ variable "fcm_client_email" {
   description = "Firebase Cloud Messaging client email – stored in Secrets Manager"
 }
 
+variable "rsa_private_key" {
+  type        = string
+  sensitive   = true
+  description = "PEM-encoded RSA private key for decrypting login passwords – stored in Secrets Manager"
+}
+
 variable "log_retention_days" {
   type        = number
   default     = 90

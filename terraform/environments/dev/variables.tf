@@ -223,6 +223,12 @@ variable "fcm_client_email" {
   description = "Firebase Cloud Messaging client email – stored in Secrets Manager"
 }
 
+variable "rsa_private_key" {
+  type        = string
+  sensitive   = true
+  description = "PEM-encoded RSA private key for decrypting login passwords – stored in Secrets Manager"
+}
+
 variable "log_retention_days" {
   type        = number
   default     = 14
@@ -339,4 +345,15 @@ variable "postgres_client_version" {
     on the ECS nodes. Must be >= the RDS engine major version, because pg_dump
     refuses to dump from a server newer than itself.
   DESC
+}
+
+variable "scheduler_one_off_stop_at" {
+  type        = string
+  default     = null
+  description = <<-EOT
+    One-off override for tonight's auto-stop, as an RFC3339 timestamp in GMT+7
+    (e.g. "2026-09-18T23:59:00+07:00"). Applies to a single day only: the
+    recurring 18:00 GMT+7 stop skips that day and resumes automatically
+    afterwards. Leave null for the normal schedule.
+  EOT
 }

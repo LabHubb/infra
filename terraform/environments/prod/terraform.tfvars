@@ -217,6 +217,7 @@ redis_node_type = "cache.t4g.small"
 # fcm_project_id       → set via: export TF_VAR_fcm_project_id="..."
 # fcm_private_key      → set via: export TF_VAR_fcm_private_key="..."
 # fcm_client_email     → set via: export TF_VAR_fcm_client_email="..."
+# rsa_private_key      → set via: export TF_VAR_rsa_private_key="..."
 
 # ── Observability ─────────────────────────────────────────────────────────────
 log_retention_days = 90

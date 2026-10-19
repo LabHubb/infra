@@ -5,6 +5,9 @@
 #   Start  → 01:00 UTC  (08:00 GMT+7)  Mon-Fri
 #   Stop   → 11:00 UTC  (18:00 GMT+7)  Mon-Fri
 #
+# Set var.one_off_stop_at to push the stop to a later time on a single day
+# (e.g. a late working session). See its description for details.
+#
 # Targets:
 #   * ECS services        - UpdateService desiredCount 0 / original
 #   * ASG (ECS EC2 nodes) - UpdateAutoScalingGroup min/max/desired 0 / original
@@ -81,8 +84,21 @@ resource "aws_scheduler_schedule_group" "this" {
 ################################################################################
 
 locals {
-  start_cron = "cron(0 1 ? * MON-FRI *)"  # 01:00 UTC = 08:00 GMT+7
-  stop_cron  = "cron(0 11 ? * MON-FRI *)" # 11:00 UTC = 18:00 GMT+7
+  start_cron    = "cron(0 1 ? * MON-FRI *)"  # 01:00 UTC = 08:00 GMT+7
+  stop_cron     = "cron(0 11 ? * MON-FRI *)" # 11:00 UTC = 18:00 GMT+7
+  asg_stop_cron = "cron(5 11 ? * MON-FRI *)" # 11:05 UTC – 5 min after ECS stop
+
+  # ── One-off stop override (see var.one_off_stop_at) ────────────────────────
+  one_off_stop = var.one_off_stop_at != null
+
+  # at() takes a local wall-clock time with no UTC offset; the timezone comes
+  # from schedule_expression_timezone instead.
+  one_off_stop_local     = local.one_off_stop ? substr(var.one_off_stop_at, 0, 19) : null
+  one_off_asg_stop_local = local.one_off_stop ? substr(timeadd(var.one_off_stop_at, "5m"), 0, 19) : null
+
+  # Hold the recurring stop until after the one-off has fired, so it skips the
+  # overridden day and then resumes on its own at the next cron match.
+  recurring_stop_start_date = local.one_off_stop ? timeadd(var.one_off_stop_at, "15m") : null
 }
 
 ################################################################################
@@ -126,6 +142,7 @@ resource "aws_scheduler_schedule" "ecs_stop" {
 
   schedule_expression          = local.stop_cron
   schedule_expression_timezone = "UTC"
+  start_date                   = local.recurring_stop_start_date
 
   flexible_time_window {
     mode = "OFF"
@@ -182,8 +199,9 @@ resource "aws_scheduler_schedule" "asg_stop" {
   name       = "${var.name_prefix}-asg-stop"
   group_name = aws_scheduler_schedule_group.this.name
 
-  schedule_expression          = "cron(5 11 ? * MON-FRI *)" # 11:05 UTC
+  schedule_expression          = local.asg_stop_cron
   schedule_expression_timezone = "UTC"
+  start_date                   = local.recurring_stop_start_date
 
   flexible_time_window {
     mode = "OFF"
@@ -238,6 +256,7 @@ resource "aws_scheduler_schedule" "rds_stop" {
 
   schedule_expression          = local.stop_cron
   schedule_expression_timezone = "UTC"
+  start_date                   = local.recurring_stop_start_date
 
   flexible_time_window {
     mode = "OFF"
@@ -253,3 +272,88 @@ resource "aws_scheduler_schedule" "rds_stop" {
   }
 }
 
+################################################################################
+# One-off STOP override (var.one_off_stop_at)
+#
+# When set, these at() schedules fire once at the requested time and shut the
+# environment down. The recurring stop schedules above are held back past this
+# time (start_date), so the overridden day is skipped and the normal 18:00 GMT+7
+# stop resumes automatically at the next cron match.
+#
+# Order matches the recurring flow: ECS services + RDS first, ASG 5 min later.
+################################################################################
+
+resource "aws_scheduler_schedule" "ecs_stop_one_off" {
+  for_each = local.one_off_stop ? var.ecs_services : {}
+
+  name       = "${var.name_prefix}-ecs-${each.key}-stop-one-off"
+  group_name = aws_scheduler_schedule_group.this.name
+
+  schedule_expression          = "at(${local.one_off_stop_local})"
+  schedule_expression_timezone = var.one_off_stop_timezone
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:ecs:updateService"
+    role_arn = aws_iam_role.scheduler.arn
+
+    input = jsonencode({
+      Cluster      = var.ecs_cluster_name
+      Service      = each.value.service_name
+      DesiredCount = 0
+    })
+  }
+}
+
+resource "aws_scheduler_schedule" "rds_stop_one_off" {
+  count = local.one_off_stop ? 1 : 0
+
+  name       = "${var.name_prefix}-rds-stop-one-off"
+  group_name = aws_scheduler_schedule_group.this.name
+
+  schedule_expression          = "at(${local.one_off_stop_local})"
+  schedule_expression_timezone = var.one_off_stop_timezone
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:rds:stopDBInstance"
+    role_arn = aws_iam_role.scheduler.arn
+
+    input = jsonencode({
+      DbInstanceIdentifier = var.rds_identifier
+    })
+  }
+}
+
+resource "aws_scheduler_schedule" "asg_stop_one_off" {
+  count = local.one_off_stop ? 1 : 0
+
+  name       = "${var.name_prefix}-asg-stop-one-off"
+  group_name = aws_scheduler_schedule_group.this.name
+
+  schedule_expression          = "at(${local.one_off_asg_stop_local})"
+  schedule_expression_timezone = var.one_off_stop_timezone
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:autoscaling:updateAutoScalingGroup"
+    role_arn = aws_iam_role.scheduler.arn
+
+    input = jsonencode({
+      AutoScalingGroupName             = var.asg_name
+      MinSize                          = 0
+      MaxSize                          = 0
+      DesiredCapacity                  = 0
+      NewInstancesProtectedFromScaleIn = false
+    })
+  }
+}

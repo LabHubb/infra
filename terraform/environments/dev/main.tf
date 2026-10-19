@@ -161,6 +161,9 @@ module "secrets" {
     FCM_CLIENT_EMAIL = {
       value = var.fcm_client_email
     }
+    RSA_PRIVATE_KEY = {
+      value = var.rsa_private_key
+    }
   }
 }
 
@@ -475,6 +478,9 @@ module "scheduler" {
 
   # RDS
   rds_identifier = module.postgres[0].db_identifier
+
+  # One-off stop override (null = normal 18:00 GMT+7 stop)
+  one_off_stop_at = var.scheduler_one_off_stop_at
 
   # Note: ElastiCache Redis is not used in dev – Redis runs as an ECS container
   # and is automatically stopped/started with the ECS services + ASG.

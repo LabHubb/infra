@@ -147,6 +147,9 @@ module "secrets" {
     FCM_CLIENT_EMAIL = {
       value = var.fcm_client_email
     }
+    RSA_PRIVATE_KEY = {
+      value = var.rsa_private_key
+    }
   }
 }
 
