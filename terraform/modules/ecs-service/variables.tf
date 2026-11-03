@@ -94,6 +94,11 @@ variable "secrets_manager_secret_names" {
   description = "List of Secrets Manager secret names (e.g. labhub-dev/app-secrets) the ECS task role can read at runtime. A wildcard ARN is constructed internally so the random suffix AWS appends is handled automatically."
 }
 
+variable "enable_ses" {
+  type        = bool
+  default     = true
+  description = "Allow the ECS task role to send emails via AWS SES (ses:SendEmail, ses:SendRawEmail)."
+}
 
 variable "tags" {
   type        = map(string)

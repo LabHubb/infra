@@ -105,6 +105,10 @@ services = {
       # handled outside this file.
       { name = "APP_PORT", value = "8080" },
       { name = "APP_BASE_PATH", value = "/api/v1" },
+      { name = "MAIL_ENABLED", value = "true" },
+      { name = "MAIL_FROM_ADDRESS", value = "no-reply@labhubvn.com" },
+      { name = "MAIL_FROM_NAME", value = "LabHub Admin" },
+      { name = "MAIL_WEBADMIN_URL", value = "https://admin.labhubvn.com" },
     ]
   }
 

@@ -197,3 +197,21 @@ resource "aws_iam_role_policy" "cloudwatch_logs" {
   role   = aws_iam_role.task.id
   policy = data.aws_iam_policy_document.cloudwatch_logs.json
 }
+
+# AWS SES outbound email
+data "aws_iam_policy_document" "ses_send" {
+  count = var.enable_ses ? 1 : 0
+  statement {
+    sid       = "SESSendEmail"
+    effect    = "Allow"
+    actions   = ["ses:SendEmail", "ses:SendRawEmail"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "ses_send" {
+  count  = var.enable_ses ? 1 : 0
+  name   = "${local.full_name}-ses-send-policy"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.ses_send[0].json
+}

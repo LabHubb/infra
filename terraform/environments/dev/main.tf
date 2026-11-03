@@ -333,6 +333,7 @@ module "ecs_services" {
   # Task role – runtime access to AWS services
   s3_bucket_arns               = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
   secrets_manager_secret_names = var.enable_secrets ? [module.secrets[0].secret_name] : []
+  enable_ses                   = var.enable_ses
 
   # Ensure Redis container service is registered in the cluster before any
   # app service is deployed. ECS will still schedule tasks independently, but
@@ -438,6 +439,17 @@ module "route53" {
 }
 
 ################################################################################
+# AWS SES – Domain Identity & Easy DKIM (DNS managed on Cloudflare)
+################################################################################
+
+module "ses" {
+  count  = var.enable_ses && var.ses_domain != "" ? 1 : 0
+  source = "../../modules/ses"
+
+  domain = var.ses_domain
+}
+
+################################################################################
 # Auto Stop/Start Scheduler (dev only)
 # Start: 08:00 GMT+7 (01:00 UTC)  Mon–Fri
 # Stop:  18:00 GMT+7 (11:00 UTC)  Mon–Fri
@@ -534,5 +546,10 @@ output "secret_arn" {
 output "ecr_repository_urls" {
   description = "ECR repository URLs – empty map when enable_ecr = false"
   value       = var.enable_ecr ? module.ecr[0].repository_urls : {}
+}
+
+output "ses_cloudflare_dkim_records" {
+  description = "Add these 3 CNAME records to Cloudflare DNS (Proxy status = DNS only / grey cloud)"
+  value       = var.enable_ses && var.ses_domain != "" ? module.ses[0].cloudflare_dkim_cname_records : []
 }
 

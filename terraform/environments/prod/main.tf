@@ -323,6 +323,7 @@ module "ecs_services" {
   # Task role – runtime access to AWS services
   s3_bucket_arns               = var.enable_s3 ? values(module.s3[0].bucket_arns) : []
   secrets_manager_secret_names = var.enable_secrets ? [module.secrets[0].secret_name] : []
+  enable_ses                   = var.enable_ses
   # App fetches secrets at runtime via Secrets Manager SDK (task role has GetSecretValue)
 }
 
@@ -393,6 +394,17 @@ module "route53" {
 }
 
 ################################################################################
+# AWS SES – Domain Identity & Easy DKIM (DNS managed on Cloudflare)
+################################################################################
+
+module "ses" {
+  count  = var.enable_ses && var.ses_domain != "" ? 1 : 0
+  source = "../../modules/ses"
+
+  domain = var.ses_domain
+}
+
+################################################################################
 # Outputs
 ################################################################################
 
@@ -446,5 +458,10 @@ output "secret_arn" {
 output "ecr_repository_urls" {
   description = "ECR repository URLs – empty map when enable_ecr = false"
   value       = var.enable_ecr ? module.ecr[0].repository_urls : {}
+}
+
+output "ses_cloudflare_dkim_records" {
+  description = "Add these 3 CNAME records to Cloudflare DNS (Proxy status = DNS only / grey cloud)"
+  value       = var.enable_ses && var.ses_domain != "" ? module.ses[0].cloudflare_dkim_cname_records : []
 }
 

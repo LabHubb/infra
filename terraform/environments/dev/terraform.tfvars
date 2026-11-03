@@ -271,6 +271,12 @@ services = {
       # CORS – webadmin dev origin; adjust once fe-admin is deployed to this env.
       { name = "CORS_ALLOWED_ORIGINS", value = "http://localhost:5173" },
 
+      # Email (AWS SES)
+      { name = "MAIL_ENABLED", value = "true" },
+      { name = "MAIL_FROM_ADDRESS", value = "no-reply@labhubvn.com" },
+      { name = "MAIL_FROM_NAME", value = "LabHub Admin" },
+      { name = "MAIL_WEBADMIN_URL", value = "https://admin.labhubvn.com" },
+
       # Logging Configuration
       { name = "LOG_LEVEL", value = "debug" },
       { name = "LOG_FORMAT", value = "json" },

@@ -284,3 +284,15 @@ variable "enable_ecr" {
   default     = true
   description = "Enable ECR repository creation. One repo is automatically created per service name in var.services. Set to false if repos already exist."
 }
+
+variable "enable_ses" {
+  type        = bool
+  default     = true
+  description = "Enable AWS SES domain identity + DKIM and grant ECS tasks ses:SendEmail permission."
+}
+
+variable "ses_domain" {
+  type        = string
+  default     = "labhubvn.com"
+  description = "Domain verified in AWS SES for outbound emails (DNS managed on Cloudflare)."
+}
